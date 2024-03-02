@@ -779,6 +779,9 @@ class StructureData(Data):
             ## RM if pbc is None:
                 ## RM pbc = [True, True, True]
             ## RM self.set_pbc(pbc)
+            
+        # Final get_kinds() check - this is a bad way to do it, but it works
+        if "kinds" in properties: self.get_kinds(kind_tags=self.properties.kinds.value)
 
     #### START new methods
     
@@ -817,7 +820,11 @@ class StructureData(Data):
         return structure_dictionary
     
     def get_kinds(self, kind_tags=[], exclude=[], custom_thr={}):
-        """Get the list of kinds, taking into account all the properties.
+        """
+        Get the list of kinds, taking into account all the properties.
+        If the list of kinds is already provided--> len(kind_tags)>0, we check the consistency of it 
+        by computing the kinds with threshold=0 for each property. 
+        
         
         Algorithm:
         it generated the kinds_list for each property separately in Step 1, then
@@ -837,6 +844,10 @@ class StructureData(Data):
         In Step 3 we override the kinds with the kind_tags.
 
         Args:
+            kind_tags (list, optional): list of kind names as user defined: in principle this input trigger a check in the kind 
+                                        determination -> the mapping should be the same as obtained with get_kinds(kind_tags=[],) and
+                                        all thresholds = 0. And this is what is done: `if not None in kind_tags: thr = 0`.
+                                        For now we support also for only some selected kinds defined: ["kind1",None, ...] but with the same length as the symbols (sites).
             exclude (list, optional): list of properties to be excluded in the kind determination 
             custom_thr (dict, options): dictionary with the custom threshold for given properties (key: property, value: thr).
                                         if not provided, we fallback into the default threshold define in the property class.
@@ -847,7 +858,10 @@ class StructureData(Data):
                         the kinds in our StructureData.
             kind_values: the associated per-site (and per-kind) value of the property.
         
-        Implementation can and should be improved, but the functionalities are the desired ones.
+        Comments:
+        
+        - Implementation can and should be improved, but the functionalities are the desired ones.
+        - Moreover, the method should be accessible to run on a given properties dictionary, so to predict the kinds before the StructureData instance generation.
         """
         import numpy as np
         import copy
@@ -858,15 +872,23 @@ class StructureData(Data):
         # symbols = self.base.attributes.get("_property_attributes")['symbols']['value'] 
         # However, for now I do not let the kinds to be automatically generated when we initialise the structure:
         symbols = self.properties.symbols.value
+        list_tags = []
         if len(kind_tags) == 0: 
-            kind_tags = [None]*len(symbols)
+            kind_tags = [None]*len(symbols) # <== For now we support also for only ... see above doc string.
+            check_kinds = False
+            #kind=tags = self.properties.kinds.value
+        else:
+            list_tags = [kind_tags.index(n) for n in kind_tags]
+            check_kinds = True
+                            
+        array_tags = np.array(list_tags)
         
         # Step 1:
         kind_properties = []
         kind_values = {}
         for single_property in self.properties.get_stored_properties():
             prop = getattr(self.properties,single_property)
-            if prop.domain == "intra-site" and not single_property in ["symbols","positions"]+exclude:
+            if prop.domain == "intra-site" and not single_property in ["symbols","positions","kinds"]+exclude:
                 thr = custom_thr.get(single_property, None)
                 kind_values[single_property] = {}
                 # for this if, refer to the description of the `to_kinds` method of the IntraSiteProperty class.
@@ -882,24 +904,33 @@ class StructureData(Data):
         
         # Step 2:
         kinds = np.zeros(len(self.properties.positions.value),dtype=int) -1
+        check_array = np.zeros(len(self.properties.positions.value),dtype=int)
         kind_names = copy.deepcopy(symbols)
         for i in range(len(k)):
+            # Goes from the first symbol... so the numbers will be from zero to N (Please note: the symbol does not matter: Li0, Cu1... not Li0, Cu0.)
             element = symbols[i]
             diff = k-k[i]
             diff_sum = np.sum(np.abs(diff),axis=1)
 
             kinds[np.where(diff_sum == 0)[0]] = i
             for where in np.where(diff_sum == 0)[0]:
-                if f"{element}{i}" in kind_tags:
+                if f"{element}{i}" in kind_tags: # If I encounter the same tag as provided as input or generated here:
                     kind_names[where] = f"{element}{i+len(k)}"
                 else:
                     kind_names[where] = f"{element}{i}"
+                    
+                check_array[where] = i
+                
             if len(np.where(kinds == -1)[0]) == 0 : 
                 #print(f"search ended at iteration {i}")
                 break
         
         # Step 3:
         kind_names = [kind_names[i] if not kind_tags[i] else kind_tags[i] for i in range(len(kind_tags))]
+        
+        # Step 4: check on the kind_tags consistency with the properties value.
+        if check_kinds and not np.array_equal(check_array, array_tags):
+            raise ValueError (f"The kinds you provided in the `kind_tags` input are not correct, as properties values are not consistent with them. Please check that this is what you want.")
         
         return kind_names,kind_values
     

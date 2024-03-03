@@ -110,8 +110,9 @@ class PropertyMixinMetaclass(ABCMeta):
                 #===> WE CAN DEACTIVATE THE METHOD, using the `allow_no_calls_decorator`.
                 # Here below, we leave it there for now, in case it is needed in the future.
                 #func_set = lambda self, type_hint=type_hint, attr=attr: self._template_property(type_hint=type_hint, attr=attr)
-                func_set = lambda self, pname=None, pvalue=None: self._set_property(pname, pvalue)
-                setattr(cls, attr, property(fget=func_get,fset=func_set))
+                #
+                #func_set = lambda self, pname=None, pvalue=None: self._set_property(pname, pvalue)
+                setattr(cls, attr, property(fget=func_get)) #,fset=func_set))
 
         return cls  
     

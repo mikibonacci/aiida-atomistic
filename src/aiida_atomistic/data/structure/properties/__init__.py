@@ -78,30 +78,20 @@ class PropertyCollector(HasPropertyMixin):
         # Checking minimal inputs
         if False in [required in properties.keys() for required in self.required_properties]:
             raise KeyError(f"You need to provide at least the following properties: {self.required_properties}")
-        
-        provided_properties = copy.deepcopy(properties)
-        
+                
         # Checking if derived inputs are provided; we set to None, and then in the `_inspect_properties` method
         # we call it, meaning that we are actually setting to its default value, needed.
         # each default value is set in the validator method of the property. Instead, in its pydantic field `value`, the default will be none.
         for derived in self.derived_properties:
             if not derived in properties.keys():
-                provided_properties[derived] = {"value": None}
+                properties[derived] = {"value": None}
             
         self._parent = parent # Parent StructureData object
         
-        # properties: Dictionary containing the properties. The key is the name of the property and the value                                                           
-        # is an instance of the corresponding Property subclass value.
         super().__init__()
         
         # inspect and then store the properties in the `_property_attributes` attribute.
-        self._property_attributes = provided_properties
-        
-        # Store the properties in the StructureData node.
-        if not self._parent.is_stored:
-            self._parent.base.attributes.set('_property_attributes',self._property_attributes)
-            
-        self._inspect_properties(self._property_attributes)
+        self._property_attributes = properties
     
     def get_property_attribute(self, key):
         # In AiiDA this could be self.base.attrs['properties'][key] or similar

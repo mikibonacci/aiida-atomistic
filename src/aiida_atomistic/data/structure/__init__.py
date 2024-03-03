@@ -16,6 +16,7 @@ import copy
 import functools
 import itertools
 import json
+import numpy as np
 
 from aiida.common import AttributeDict
 from aiida.common.constants import elements
@@ -759,14 +760,22 @@ class StructureData(Data):
                 'cell':{'value':[[0,0,0]]*3},
                 'symbols':{'value':['H']}
                 }
-            self._properties = PropertyCollector(parent=self, properties=properties)
+            self._properties = PropertyCollector(parent=self, properties=copy.deepcopy(properties))
         else:
             # Private property attribute
-            self._properties = PropertyCollector(parent=self, properties=properties)
+            self._properties = PropertyCollector(parent=self, properties=copy.deepcopy(properties))
             
-        # Final get_kinds() check - this is a bad way to do it, but it works
+        # Store the properties in the StructureData node.
+        if not self.is_stored:
+            self.base.attributes.set('_property_attributes',self._properties._property_attributes)    
+            
+        # Validation, step 1 - If we call it here and not in the PropertyCollector init, 
+        # this will speed up the get_kinds below.
+        self._properties._inspect_properties(self._properties._property_attributes)
+        
+        # Validation, step 2 - Final get_kinds() check - this is a bad way to do it, but it works
         if "kinds" in properties: self.get_kinds(kind_tags=self.properties.kinds.value)
-
+        
     #### START new methods
     
     @property
@@ -850,8 +859,6 @@ class StructureData(Data):
         - Implementation can and should be improved, but the functionalities are the desired ones.
         - Moreover, the method should be accessible to run on a given properties dictionary, so to predict the kinds before the StructureData instance generation.
         """
-        import numpy as np
-        import copy
         
         # cannot do properties.symbols.value due to recursion problem if called in Kinds:
         # if I call properties, this will again reinitialize the properties attribute and so on.

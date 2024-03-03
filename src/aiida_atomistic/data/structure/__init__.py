@@ -705,10 +705,10 @@ class StructureData(Data):
 
     # pylint: disable=too-many-public-methods
 
-    _set_incompatibilities = [('ase', 'cell'), ('ase', 'pbc'), ('ase', 'pymatgen'), ('ase', 'pymatgen_molecule'),
-                              ('ase', 'pymatgen_structure'), ('cell', 'pymatgen'), ('cell', 'pymatgen_molecule'),
-                              ('cell', 'pymatgen_structure'), ('pbc', 'pymatgen'), ('pbc', 'pymatgen_molecule'),
-                              ('pbc', 'pymatgen_structure'), ('pymatgen', 'pymatgen_molecule'),
+    _set_incompatibilities = [('ase', 'properties'), ('ase', 'pymatgen'), ('ase', 'pymatgen_molecule'),
+                              ('ase', 'pymatgen_structure'), ('properties', 'pymatgen'), ('properties', 'pymatgen_molecule'),
+                              ('properties', 'pymatgen_structure'),
+                              ('pymatgen', 'pymatgen_molecule'),
                               ('pymatgen', 'pymatgen_structure'), ('pymatgen_molecule', 'pymatgen_structure')]
 
     _dimensionality_label = {0: '', 1: 'length', 2: 'surface', 3: 'volume'}
@@ -716,31 +716,23 @@ class StructureData(Data):
 
     def __init__(
         self,
-        ## RM cell=None,
-        ## RM pbc=None,
+        properties: Dict[str, Dict[str, Any]] = {},
         ase=None,
         pymatgen=None,
         pymatgen_structure=None,
         pymatgen_molecule=None,
-        properties: Dict[str, Dict[str, Any]] = {},
         **kwargs
     ):  # pylint: disable=too-many-arguments
         args = {
-            ## RM 'cell': cell,
-            ## RM 'pbc': pbc,
             'ase': ase,
             'pymatgen': pymatgen,
             'pymatgen_structure': pymatgen_structure,
             'pymatgen_molecule': pymatgen_molecule,
         }
 
-        """
-        I am not sure if this is needed now:
-        
         for left, right in self._set_incompatibilities:
             if args[left] is not None and args[right] is not None:
                 raise ValueError(f'cannot pass {left} and {right} at the same time')
-        """
 
         super().__init__(**kwargs)
 
@@ -770,15 +762,6 @@ class StructureData(Data):
         else:
             # Private property attribute
             self._properties = PropertyCollector(parent=self, properties=properties)
-
-        ## RM else:
-            ## RM if cell is None:
-                ## RM cell = _DEFAULT_CELL
-            ## RM self.set_cell(cell)
-
-            ## RM if pbc is None:
-                ## RM pbc = [True, True, True]
-            ## RM self.set_pbc(pbc)
             
         # Final get_kinds() check - this is a bad way to do it, but it works
         if "kinds" in properties: self.get_kinds(kind_tags=self.properties.kinds.value)
@@ -831,12 +814,14 @@ class StructureData(Data):
         it creates the matrix k = k.T where the rows are the sites, the columns are the properties and each element
         is the corresponding kind for the given property and the given site:
         
+        ```bash
                   p1 p2 p3 
         site1 = | 1  1  2 | = kind1
         site2 = | 1  2  3 | = kind2
         site3 = | 2  2  3 | = kind3
         site4 = | 1  2  3 | = kind4
-        
+        ```
+    
         In Step 2 it checks for the matrix which rows have the same numbers in the same order, i.e. recognize the different
         kinds considering all the properties. This is done by subtracting a row from the others and see if all the elements
         are zero, meaning that we have the same combination of kinds.
@@ -853,10 +838,11 @@ class StructureData(Data):
                                         if not provided, we fallback into the default threshold define in the property class.
             
         Returns:
-            kind_names: the list of kind-per-site to be used in a plugin which requires it. If kind tags are all decided, then we 
+            kind_names (list): the list of kind-per-site to be used in a plugin which requires it. If kind tags are all decided, then we 
                         do not compute anything and we return kind_tags and None. In this way, we know that we basically already defined 
                         the kinds in our StructureData.
-            kind_values: the associated per-site (and per-kind) value of the property.
+            kind_values (dictionary): the associated per-site (and per-kind) value of the property. The structure of the dictionary is the one that you may 
+                                      have in the `properties` dictionary input of the StructureData constructor. 
         
         Comments:
         

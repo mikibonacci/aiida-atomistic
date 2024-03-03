@@ -1,3 +1,4 @@
+import numpy as np
 from aiida_atomistic.data.structure.properties.property_utils import BaseProperty
 
 ################################################## Start: IntraSiteProperty class:
@@ -9,7 +10,6 @@ class IntraSiteProperty(BaseProperty):
     domain: str = "intra-site"
     
     def to_kinds(self, thr: float = None):
-        import numpy as np
         """Get the kinds for a generic intra-site property. Can also be overridden in the specific property.
 
         ### Search algorithm:

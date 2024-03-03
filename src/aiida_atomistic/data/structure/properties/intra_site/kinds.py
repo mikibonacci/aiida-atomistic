@@ -14,10 +14,9 @@ class Kinds(IntraSiteProperty):
     The kinds property, for each atom(site). 
     Can also be not defined. In that case, the plugin will use the get_kinds() method to have the list of kinds to use. 
     """
-    domain = "intra-site"
     value: List[str]
     
-    @validator("value", always=True)
+    @validator("value", pre=True, always=True)
     def validate_kinds(cls,value,values):
  
         properties = values["parent"].base.attributes.get("_property_attributes")

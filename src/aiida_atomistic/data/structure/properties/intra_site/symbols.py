@@ -13,11 +13,10 @@ class Symbols(IntraSiteProperty):
     """
     The symbols property, intended as the chemical symbols for each atom(site). 
     """
-    domain = "intra-site"
     # units... maybe specify in the docs.
     value: List[Literal[_valid_symbols]]
     
-    @validator("value", always=True)
+    @validator("value", pre=True, always=True)
     def validate_symbols(cls,value,values):
         # I have to use the _property_attributes, as accessing directly parent.properties gives recursion error.
         # Maybe it is possible to change how we get the properties? 

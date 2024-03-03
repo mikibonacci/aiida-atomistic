@@ -716,7 +716,7 @@ class StructureData(Data):
 
     def __init__(
         self,
-        properties: Dict[str, Dict[str, Any]] = {},
+        properties: Dict[str, Dict[str, Any]] = None,
         ase=None,
         pymatgen=None,
         pymatgen_structure=None,
@@ -724,6 +724,7 @@ class StructureData(Data):
         **kwargs
     ):  # pylint: disable=too-many-arguments
         args = {
+            'properties': properties,
             'ase': ase,
             'pymatgen': pymatgen,
             'pymatgen_structure': pymatgen_structure,

@@ -13,11 +13,11 @@ class Mass(IntraSiteProperty):
     """
     The mass property. 
     """
-    default_kind_threshold = 1e-3
+    default_kind_threshold: float = 1e-3
     # units... maybe specify in the docs.
     value: List[float] = Field(default=None)
 
-    @validator("value", always=True)
+    @validator("value", pre=True, always=True)
     def validate_masses(cls,value,values):
         # I have to use the _property_attributes, as accessing directly parent.properties gives recursion error.
         # Maybe it is possible to change how we get the properties? 

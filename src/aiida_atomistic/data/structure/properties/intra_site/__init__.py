@@ -6,7 +6,7 @@ class IntraSiteProperty(BaseProperty):
     """Generic class for intra-site properties. 
     Extends the BaseProperty class with specific methods for the properties which relates to only one site.
     """
-    domain = "intra-site"
+    domain: str = "intra-site"
     
     def to_kinds(self, thr: float = None):
         import numpy as np

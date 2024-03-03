@@ -13,4 +13,5 @@ extra:
     provider: mike
 
 nav:
-  - Home: index.md
+  - Home: source/index.md
+  - Developer guide: source/developer_guide/core_developer_guide_structuredata.md

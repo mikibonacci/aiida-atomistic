@@ -14,7 +14,7 @@ class Positions(IntraSiteProperty):
     value: List[List[float]] = Field(default=None)
     #kind_tags: List[str] = Field(default=None)
     
-    @validator("value", always=True)
+    @validator("value", pre=True, always=True)
     def validate_positions(cls,value,values):
         # (1) validate the list of 3-d coordinates:
         for position in value:

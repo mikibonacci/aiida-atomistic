@@ -1,0 +1,16 @@
+site_name: aiida-atomistic, the materials science plugin for the AiiDA platform
+theme:
+  name: material
+  font:
+    text: Roboto
+  features:
+    - header.autohide
+    - navigation.tabs
+    - navigation.sections
+
+extra:
+  version:
+    provider: mike
+
+nav:
+  - Home: index.md

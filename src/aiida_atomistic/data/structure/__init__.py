@@ -760,21 +760,29 @@ class StructureData(Data):
                 'cell':{'value':[[0,0,0]]*3},
                 'symbols':{'value':['H']}
                 }
-            self._properties = PropertyCollector(parent=self, properties=copy.deepcopy(properties))
+            self._properties = PropertyCollector(parent=self, properties=properties)
         else:
             # Private property attribute
-            self._properties = PropertyCollector(parent=self, properties=copy.deepcopy(properties))
+            copied_properties = copy.deepcopy(properties)
+            self._properties = PropertyCollector(parent=self, properties=copied_properties)
             
-        # Store the properties in the StructureData node.
-        if not self.is_stored:
-            self.base.attributes.set('_property_attributes',self._properties._property_attributes)    
+            # Store the properties in the StructureData node.
+            if not self.is_stored: 
+                self.base.attributes.set('_property_attributes',self._properties._property_attributes)  
+                if not "kinds" in copied_properties.keys():
+                    # Generate kinds. Code should be improved.
+                    new_properties = self.get_kinds()
+                    copied_properties.update(new_properties)
+                    self._properties = PropertyCollector(parent=self, properties=copied_properties)
+                    self.base.attributes.set('_property_attributes',self._properties._property_attributes)
+                else:
+                    # Validation, step 1 - Final get_kinds() check - this is a bad way to do it, but it works
+                    self.get_kinds(kind_tags=self.properties.kinds.value)
             
-        # Validation, step 1 - If we call it here and not in the PropertyCollector init, 
-        # this will speed up the get_kinds below.
+        # Validation, step 2 - If we call it here and not in the PropertyCollector init, 
+        # this will speed up the get_kinds above, because it is not called every time we 
+        # access property (i.e. _property).
         self._properties._inspect_properties(self._properties._property_attributes)
-        
-        # Validation, step 2 - Final get_kinds() check - this is a bad way to do it, but it works
-        if "kinds" in properties: self.get_kinds(kind_tags=self.properties.kinds.value)
         
     #### START new methods
     
@@ -848,11 +856,11 @@ class StructureData(Data):
                                         if not provided, we fallback into the default threshold define in the property class.
             
         Returns:
-            kind_names (list): the list of kind-per-site to be used in a plugin which requires it. If kind tags are all decided, then we 
-                        do not compute anything and we return kind_tags and None. In this way, we know that we basically already defined 
-                        the kinds in our StructureData.
-            kind_values (dictionary): the associated per-site (and per-kind) value of the property. The structure of the dictionary is the one that you may 
+            kinds_dictionary (dictionary): the associated per-site (and per-kind) value of the property. The structure of the dictionary is the one that you may 
                                       have in the `properties` dictionary input of the StructureData constructor. 
+                                      We also provide the `kinds` property: list of kind-per-site to be used in a plugin which requires it. If kind tags are all decided, then we 
+                                      do not compute anything and we return kind_tags and None. In this way, we know that we basically already defined 
+                                      the kinds in our StructureData.
         
         Comments:
         
@@ -879,19 +887,19 @@ class StructureData(Data):
         
         # Step 1:
         kind_properties = []
-        kind_values = {}
+        kinds_dictionary = {'kinds':{}}
         for single_property in self.properties.get_stored_properties():
             prop = getattr(self.properties,single_property)
             if prop.domain == "intra-site" and not single_property in ["symbols","positions","kinds"]+exclude:
                 thr = custom_thr.get(single_property, None)
-                kind_values[single_property] = {}
+                kinds_dictionary[single_property] = {}
                 # for this if, refer to the description of the `to_kinds` method of the IntraSiteProperty class.
                 if not None in kind_tags:
                     thr = 0
                 kinds_per_property = prop.to_kinds(thr=thr)
                 kind_properties.append(kinds_per_property[0])
                 # I prefer to store again under the key 'value', may be useful in the future
-                kind_values[single_property]['value'] = kinds_per_property[1].tolist()
+                kinds_dictionary[single_property]['value'] = kinds_per_property[1].tolist()
                 
         k = np.array(kind_properties)
         k = k.T
@@ -920,13 +928,13 @@ class StructureData(Data):
                 break
         
         # Step 3:
-        kind_names = [kind_names[i] if not kind_tags[i] else kind_tags[i] for i in range(len(kind_tags))]
+        kinds_dictionary['kinds']['value'] = [kind_names[i] if not kind_tags[i] else kind_tags[i] for i in range(len(kind_tags))]
         
         # Step 4: check on the kind_tags consistency with the properties value.
         if check_kinds and not np.array_equal(check_array, array_tags):
             raise ValueError (f"The kinds you provided in the `kind_tags` input are not correct, as properties values are not consistent with them. Please check that this is what you want.")
         
-        return kind_names,kind_values
+        return kinds_dictionary
     
     #### END new methods
     

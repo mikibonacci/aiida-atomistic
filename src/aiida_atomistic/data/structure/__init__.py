@@ -722,6 +722,7 @@ class StructureData(Data):
         pymatgen=None,
         pymatgen_structure=None,
         pymatgen_molecule=None,
+        allow_kinds=True,
         **kwargs
     ):  # pylint: disable=too-many-arguments
         args = {
@@ -769,7 +770,7 @@ class StructureData(Data):
             # Store the properties in the StructureData node.
             if not self.is_stored: 
                 self.base.attributes.set('_property_attributes',self._properties._property_attributes)  
-                if not "kinds" in copied_properties.keys():
+                if not "kinds" in copied_properties.keys() and allow_kinds:
                     # Generate kinds. Code should be improved.
                     new_properties = self.get_kinds()
                     copied_properties.update(new_properties)

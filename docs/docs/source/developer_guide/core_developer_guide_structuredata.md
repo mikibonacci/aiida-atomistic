@@ -33,11 +33,28 @@ To resume, we have the following logic for the initialisation for a StructureDat
 2) if one among ase, pymatgen, pymatgen_structure, pymatgen_molecule are passed, we initialise using a corresponding class method (**to be implemented**);
 3) if the `properties` dictionary is provided as input, we proceed with the standard initialisation of the `PropertyCollector` instance.
 
-At the end of this procedure, the last action of the `__init__` method is a check on the `kinds` property: if kinds are defined, we try to call the `get_kinds` method providing as input the `self.properties.kinds.value` list, which is then check for consistency (i.e., atoms with the same kind should have also the same value of each `intra-site` related property).
+In particular, the option (3) has the following crucial block of code (that can be optimised):
+```python
+# Store the properties in the StructureData node.
+if not self.is_stored: 
+    self.base.attributes.set('_property_attributes',self._properties._property_attributes)  
+    if not "kinds" in copied_properties.keys():
+        # Generate kinds. Code should be improved.
+        new_properties = self.get_kinds()
+        copied_properties.update(new_properties)
+        self._properties = PropertyCollector(parent=self, properties=copied_properties)
+        self.base.attributes.set('_property_attributes',self._properties._property_attributes)
+    else:
+        # Validation, step 1 - Final get_kinds() check - this is a bad way to do it, but it works
+        self.get_kinds(kind_tags=self.properties.kinds.value)
+```
+where we generate or check the `kinds` property: if kinds are not defined, we generate them via the `get_kinds` method, which return a dictionary of properties to update the input one (*copied_properties*) to be
+then used to initialise the final PropertyCollector instance. Instead, if kinds are defined, we try to call the same `get_kinds` method, but providing as input the `self.properties.kinds.value` list, which is then check for consistency (i.e., atoms with the same kind should have also the same value of each `intra-site` related property).
+**To test**: store and load the StructureData node.
 
 ### Methods provided in the class
 
-#### `get_kinds`: generating a list of kinds and checking pre-existing ones
+#### `get_kinds`: generating a list of kinds and/or checking pre-existing ones
 
 The method is meant to provide a list of kinds and related properties (the *intra-site* ones), starting from what you have defined under the `properties` attribute of the StructureData node. For details on the algorithm and inputs and outputs, see the corresponding method docstring. 
 In principle, if in a plugin we need to provide the properties in a kind-wise format, this is the function to be used. *For now, the list in output is still site-defined, so its length is the same as, for examples, the symbols property*

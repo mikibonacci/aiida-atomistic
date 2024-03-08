@@ -22,7 +22,7 @@ from aiida.common import AttributeDict
 from aiida.common.constants import elements
 from aiida.common.exceptions import UnsupportedSpeciesError
 
-
+from aiida import orm
 from aiida.orm import Data
 
 from typing import Dict, Any
@@ -820,6 +820,24 @@ class StructureData(Data):
                 structure_dictionary[key]['value'] = new_value['value']
         
         return structure_dictionary
+    
+    def to_legacy_structuredata(self,):
+        """
+        Method to dump a LegacyStructureData from the atomistic one (this).
+        Mainly used to support backward compatibility of the codes, i.e. to avoid too 
+        many changes to the codes
+        """
+        properties = self.to_dict()
+        legacy = orm.StructureData(cell=properties['cell']['value'])
+        if "kinds" in properties.keys():
+            for position,symbol,kind in list(zip(properties['positions']['value'],properties['symbols']['value'],properties['kinds']['value'])):
+                legacy.append_atom(position=position,symbols=symbol,name=kind)
+        else:
+            for position,symbol in list(zip(properties['positions']['value'],properties['symbols']['value'])):
+                legacy.append_atom(position=position,symbols=symbol)
+                
+        return legacy
+        
     
     def get_kinds(self, kind_tags=[], exclude=[], custom_thr={}):
         """

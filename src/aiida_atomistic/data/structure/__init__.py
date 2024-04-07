@@ -763,7 +763,7 @@ class StructureData(Data):
                 }
             self._properties = PropertyCollector(parent=self, properties=properties)
         else:
-            # Private property attribute
+            # Private _property attribute
             copied_properties = copy.deepcopy(properties)
             self._properties = PropertyCollector(parent=self, properties=copied_properties)
             
@@ -771,17 +771,19 @@ class StructureData(Data):
             if not self.is_stored: 
                 self.base.attributes.set('_property_attributes',self._properties._property_attributes)  
                 if not "kinds" in copied_properties.keys() and allow_kinds:
-                    # Generate kinds. Code should be improved.
+                    # Generate kinds with respect to the provided properties. Code can be improved.
                     new_properties = self.get_kinds()
                     copied_properties.update(new_properties)
                     self._properties = PropertyCollector(parent=self, properties=copied_properties)
-                    self.base.attributes.set('_property_attributes',self._properties._property_attributes)
                 else:
                     # Validation, step 1 - Final get_kinds() check - this is a bad way to do it, but it works
                     self.get_kinds(kind_tags=self.properties.kinds.value)
-            
-        # Validation, step 2 - If we call it here and not in the PropertyCollector init, 
-        # this will speed up the get_kinds above, because it is not called every time we 
+        
+        # Store the properties in the StructureData node.
+        self.base.attributes.set('_property_attributes',self._properties._property_attributes)
+           
+        # Validation, step 2 - If we call it here and not in the PropertyCollector init, as done before, 
+        # this will speed up the get_kinds above: it is not called every time we 
         # access property (i.e. _property).
         self._properties._inspect_properties(self._properties._property_attributes)
         
@@ -813,9 +815,9 @@ class StructureData(Data):
         structure_dictionary = copy.deepcopy(self.base.attributes.get('_property_attributes'))
         
         if generate_kinds:
-            kinds, new_properties_value = self.get_kinds(exclude=kinds_exclude, custom_thr=kinds_thresholds)
+            new_properties_value = self.get_kinds(exclude=kinds_exclude, custom_thr=kinds_thresholds)
             
-            structure_dictionary['kinds'] = {'value':kinds}
+            structure_dictionary['kinds'] = {'value':new_properties_value['kinds']}
             for key, new_value in new_properties_value.items(): # can also use recursive_merge here, to check if cyclic import problems
                 structure_dictionary[key]['value'] = new_value['value']
         

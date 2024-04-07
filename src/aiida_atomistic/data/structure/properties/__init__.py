@@ -33,12 +33,12 @@ class PropertyCollector(HasPropertyMixin):
     cannot initialise any properties without crystal structure information. This is related to consistency
     checks. 
     So we need some check in the StructureData also, that block or give empty PropertyCollector attribute 
-    (StructureData.properties) case no crystal structure is defined.
+    (StructureData.properties) case no crystal structure is defined. 
     
     #### Property format:
     The properties are stored exactly as they are provided in the construction of the class instance: in 
     this way, we do not have ambiguities when the properties are used or loaded from the database/repository.
-    To facilitate this, we may provided some `translation methods` from and to the format allowed in the property.
+    To facilitate this, we may want provide some `translation methods` from and to the format allowed in the property.
     
     The supported properties are listed below. 
     The order does matter here, It is needed for the consistency check among properties.
@@ -100,6 +100,7 @@ class PropertyCollector(HasPropertyMixin):
     def _inspect_properties(self,properties):
         """
         Method used to understand if we are defining supported/unsupported properties. 
+        It is called in the StructureData initialization step.
         Here there should be also the detection of custom properties, which 
         have a defined prefix.
         

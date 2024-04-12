@@ -37,9 +37,10 @@ def properties(self,value):
 this is done because we want the StructureData to be only a container of data, and then immutable after the initialization. This means that the `append_atom` method is not more supported (or at least should not be present in the final version). 
 
 We have the following logic for the initialisation for a StructureData instance:
-1) if no argument is passed to the constructor, we initialise a StructureData with one Hydrogen atom at the origin (0,0,0), and a cell with zero volume. Just a placeholder to be able to call the `get_supported_properties` method of the collector, which print a list of properties that can be set;
-2) if one among ase, pymatgen, pymatgen_structure, pymatgen_molecule are passed, we initialise using a corresponding class method (**to be implemented**);
-3) if the `properties` dictionary is provided as input, we proceed with the standard initialisation of the `PropertyCollector` instance.
+
+- if no argument is passed to the constructor, we initialise a StructureData with one Hydrogen atom at the origin (0,0,0), and a cell with zero volume. Just a placeholder to be able to call the `get_supported_properties` method of the collector, which print a list of properties that can be set;
+- if one among ase, pymatgen, pymatgen_structure, pymatgen_molecule are passed, we initialise using a corresponding class method (**to be implemented**);
+- if the `properties` dictionary is provided as input, we proceed with the standard initialisation of the `PropertyCollector` instance.
 
 In particular, the option (3) has the following crucial block of code (can be optimised):
 ```python
@@ -58,8 +59,6 @@ if not self.is_stored:
 ```
 where we generate and/or check the `kinds` property: if kinds are not defined, we generate them via the `get_kinds` method, which return a dictionary of properties to update the input one (*copied_properties*) to be
 then used to initialise the final PropertyCollector instance. We can disable the automatic kind creation by providing as False the boolean input `allow_kinds`. Instead, if kinds are defined, we try to call the same `get_kinds` method, but providing as input the `self.properties.kinds.value` list, which is then checked for consistency (i.e., atoms with the same kind should have also the same value of each `intra-site` related property). The method is described below in the next section.
-
-**To test**: store and load the StructureData node.
 
 ### Methods provided in the class
 

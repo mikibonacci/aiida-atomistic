@@ -1,17 +1,25 @@
-# Welcome to MkDocs
+# The aiida-atomistic plugin for [`AiiDA`](http://www.aiida.net)
 
-For full documentation visit [mkdocs.org](https://www.mkdocs.org).
+StructureData documentation is in the User guide/StructureData section.
 
-## Commands
+``aiida-atomistic`` is available at http://github.com/aiidateam/aiida-atomistic.
 
-* `mkdocs new [dir-name]` - Create a new project.
-* `mkdocs serve` - Start the live-reloading docs server.
-* `mkdocs build` - Build the documentation site.
-* `mkdocs -h` - Print help message and exit.
+In principle, this should collect all the [AiiDA data types related to material science](https://aiida.readthedocs.io/projects/aiida-core/en/latest/topics/data_types.html#materials-science-data-types).
 
-## Project layout
+If you use this plugin for your research, please cite the following work:
 
-    mkdocs.yml    # The configuration file.
-    docs/
-        index.md  # The documentation homepage.
-        ...       # Other markdown pages, images and other files.
+> Author Name1, Author Name2, *Paper title*, Jornal Name XXX, YYYY (Year).
+
+If you use AiiDA for your research, please cite the following work:
+
+> Sebastiaan. P. Huber, Spyros Zoupanos, Martin Uhrin, Leopold Talirz, 
+  Leonid Kahle, Rico Häuselmann, Dominik Gresch, Tiziano Müller, Aliaksandr V. Yakutovich, 
+  Casper W. Andersen, Francisco F. Ramirez, Carl S. Adorf, Fernando Gargiulo, Snehal Kumbhar, 
+  Elsa Passaro, Conrad Johnston, Andrius Merkys, Andrea Cepellotti, Nicolas Mounet, Nicola Marzari, 
+  Boris Kozinsky, and Giovanni Pizzi, [*AiiDA 1.0, a scalable computational infrastructure for automated 
+  reproducible workflows and data provenance*](https://doi.org/10.1038/s41597-020-00638-4), Scientific Data **7**, 300 (2020)
+
+``aiida-atomistic`` is released under the MIT license.
+
+Please contact miki.bonacci@psi.ch for information concerning ``aiida-atomistic`` and 
+the [`AiiDA mailing list`](http://www.aiida.net/mailing-list/) for questions concerning ``aiida``.

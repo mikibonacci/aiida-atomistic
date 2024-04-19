@@ -775,7 +775,7 @@ class StructureData(Data):
                     new_properties = self.get_kinds()
                     copied_properties.update(new_properties)
                     self._properties = PropertyCollector(parent=self, properties=copied_properties)
-                else:
+                elif allow_kinds:
                     # Validation, step 1 - Final get_kinds() check - this is a bad way to do it, but it works
                     self.get_kinds(kind_tags=self.properties.kinds.value)
         

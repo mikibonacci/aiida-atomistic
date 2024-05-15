@@ -18,7 +18,6 @@ import typing as t
 
 from aiida.common.constants import elements
 from aiida.common.exceptions import UnsupportedSpeciesError
-from aiida.common.pydantic import MetadataField
 
 from aiida.orm.nodes.data import Data
 
@@ -676,14 +675,6 @@ class StructureData(Data):
     _dimensionality_label = {0: '', 1: 'length', 2: 'surface', 3: 'volume'}
     _internal_kind_tags = None
 
-    class Model(Data.Model):
-        pbc1: bool = MetadataField(description='Whether periodic in the a direction')
-        pbc2: bool = MetadataField(description='Whether periodic in the b direction')
-        pbc3: bool = MetadataField(description='Whether periodic in the c direction')
-        cell: t.List[t.List[float]] = MetadataField(default=_DEFAULT_CELL ,description='The cell parameters') # default is redundant here with the constructor I guess.
-        kinds: t.Optional[t.List[dict]] = MetadataField(description='The kinds of atoms')
-        sites: t.Optional[t.List[dict]] = MetadataField(description='The atomic sites')
-        charges: t.Optional[t.List[float]] = MetadataField(description='The charge on a given site')
 
     def __init__(
         self,
@@ -1770,6 +1761,8 @@ class StructureData(Data):
 
         for site in self.sites:
             asecell.append(site.get_ase(kinds=_kinds))
+            
+        if hasattr(self,"charges"): asecell.set_initial_charges(self.charges)   
         return asecell
 
     def _get_object_pymatgen(self, **kwargs):

@@ -680,20 +680,21 @@ class StructureData(Data):
         pbc1: bool = MetadataField(description='Whether periodic in the a direction')
         pbc2: bool = MetadataField(description='Whether periodic in the b direction')
         pbc3: bool = MetadataField(description='Whether periodic in the c direction')
-        cell: t.List[t.List[float]] = MetadataField(description='The cell parameters')
+        cell: t.List[t.List[float]] = MetadataField(default=_DEFAULT_CELL ,description='The cell parameters') # default is redundant here with the constructor I guess.
         kinds: t.Optional[t.List[dict]] = MetadataField(description='The kinds of atoms')
         sites: t.Optional[t.List[dict]] = MetadataField(description='The atomic sites')
+        charges: t.Optional[t.List[float]] = MetadataField(description='The charge on a given site')
 
     def __init__(
         self,
-        cell=None,
-        pbc=None,
-        pbc1=None,
-        pbc2=None,
-        pbc3=None,
-        kinds=None,
-        sites=None,
-        #properties=None,
+        cell: t.List[t.List[float]] = _DEFAULT_CELL,
+        pbc: t.List[float] = [True, True, True],
+        pbc1 = None,
+        pbc2 = None,
+        pbc3 = None,
+        kinds = None,
+        sites = None,
+        charges=None,
         **kwargs,
     ):
         if pbc1 is not None and pbc2 is not None and pbc3 is not None:
@@ -701,12 +702,7 @@ class StructureData(Data):
 
         super().__init__(**kwargs)
 
-        if cell is None:
-            cell = _DEFAULT_CELL
         self.set_cell(cell)
-
-        if pbc is None:
-            pbc = [True, True, True]
         self.set_pbc(pbc)
 
         if kinds is not None:
@@ -714,6 +710,9 @@ class StructureData(Data):
 
         if sites is not None:
             self.base.attributes.set('sites', sites)
+            
+        if charges is not None:
+            self.base.attributes.set('charges', charges)
                 
     @classmethod
     def from_ase(cls, aseatoms: ase.Atoms):
@@ -850,6 +849,28 @@ class StructureData(Data):
 
         return structure
     
+    @property
+    def charges(self) -> t.List[t.List[float]]:
+        """Returns the charges.
+
+        :return: a list of floats.
+        """
+        return copy.deepcopy(self.base.attributes.get('charges'))
+
+    @charges.setter
+    def charges(self, value):
+        """Set the charges."""
+        self.set_charges(value)
+        
+    def set_charges(self, value):
+        """Really set the charges."""
+        from aiida.common.exceptions import ModificationNotAllowed
+
+        if self.is_stored:
+            raise ModificationNotAllowed('The StructureData object cannot be modified, it has already been stored')
+
+        self.base.attributes.set('charges', value)
+        
     def get_dimensionality(self):
         """Return the dimensionality of the structure and its length/surface/volume.
 

@@ -726,6 +726,8 @@ class StructureData(Data):
         for atom in aseatoms:
             structure.append_atom(ase=atom)
             
+        structure.charges = aseatoms.get_initial_charges()
+            
         return structure
 
     @classmethod
@@ -849,6 +851,19 @@ class StructureData(Data):
 
         return structure
     
+    def map_kinds(self,):
+        """"
+        Naive way to have a mapping of the kinds, still using Site and Kind objects.
+        """
+        index_kinds = []
+        for kind in self.kinds:
+            name = kind.name
+            for i in range(len(self.sites)):
+                if name == self.sites[i].kind_name:
+                    index_kinds.append(i)
+                    break
+        return index_kinds
+
     @property
     def charges(self) -> t.List[t.List[float]]:
         """Returns the charges.
@@ -869,7 +884,7 @@ class StructureData(Data):
         if self.is_stored:
             raise ModificationNotAllowed('The StructureData object cannot be modified, it has already been stored')
 
-        self.base.attributes.set('charges', value)
+        self.base.attributes.set('charges', list(value))
         
     def get_dimensionality(self):
         """Return the dimensionality of the structure and its length/surface/volume.
@@ -1340,6 +1355,7 @@ class StructureData(Data):
         :param position: the position of the atom (three numbers in angstrom)
         :param symbols: passed to the constructor of the Kind object.
         :param weights: passed to the constructor of the Kind object.
+        :param charge: passed to the constructor of the charges property
         :param name: passed to the constructor of the Kind object. See also the note below.
 
         .. note :: Note on the 'name' parameter (that is, the name of the kind):
@@ -1362,6 +1378,9 @@ class StructureData(Data):
         .. note :: checks of equality of species are done using
           the :py:meth:`~aiida.orm.nodes.data.structure.Kind.compare_with` method.
         """
+        atom_charge = kwargs.pop('charge', None)
+        if atom_charge: self.charges += [atom_charge]
+        
         aseatom = kwargs.pop('ase', None)
         if aseatom is not None:
             if kwargs:
@@ -1376,7 +1395,7 @@ class StructureData(Data):
                 raise ValueError('You have to specify the position of the new atom')
             # all remaining parameters
             kind = Kind(**kwargs)
-
+        
         # I look for identical species only if the name is not specified
         _kinds = self.kinds
 

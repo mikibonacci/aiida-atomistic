@@ -15,6 +15,7 @@ import functools
 import itertools
 import json
 import typing as t
+import numpy as np
 
 from aiida_atomistic.data.structure.utils import (
     _get_valid_cell,
@@ -79,15 +80,17 @@ class StructureData(Data):
         pbc1 = None,
         pbc2 = None,
         pbc3 = None,
-        #kinds = None,
-        #positions = None,
-        #masses = None,
-        #charges = None,
+        symbols = None,
+        positions = None,
+        masses = None,
+        charges = None,
+        magnetizations = None,
+        kinds = None,
         **kwargs,
     ):
         """
         This is the constructor of StructureData. It should be possible to provide 
-        all the necessary informations needed to completely define a StructureData 
+        all the necessary information needed to completely define a StructureData 
         instance.    
         """
         if pbc1 is not None and pbc2 is not None and pbc3 is not None:
@@ -98,11 +101,29 @@ class StructureData(Data):
         self.set_cell(cell)
         self.set_pbc(pbc)
 
-        #if kinds is not None:
-        #    self.base.attributes.set('kinds', kinds)
+        if positions and symbols:
+            for ind in range(len(positions)):
+                self.append_atom(
+                    position=positions[ind], 
+                    symbol=symbols[ind],
+                    mass=masses[ind] if masses else None,
+                    charge=charges[ind] if charges else 0,
+                    magnetization=magnetizations[ind] if magnetizations else 0,
+                    )
 
-        #if positions is not None:
-        #    self.base.attributes.set('sites', sites)
+            # DOES NOT WORK: self.sites seems not working
+            if masses:
+                for site, mass in zip(self.sites, masses):
+                    site.mass = mass
+                    
+            if magnetizations:
+                for site, magnetization in zip(self.sites, magnetizations):
+                    site.magnetization = magnetization
+            
+            if charges:
+                for site, charge in zip(self.sites, charges):
+                    site.charge = charge
+        
     
            
     @classmethod
@@ -142,14 +163,14 @@ class StructureData(Data):
             raise ImportError("The pymatgen package cannot be imported.")
             
         if isinstance(pymatgen_obj, core.structure.Molecule):
-            structure = cls.from_pymatgen_molecule(pymatgen_obj)
+            structure = cls._from_pymatgen_molecule(pymatgen_obj)
         else:
-            structure = cls.from_pymatgen_structure(pymatgen_obj)
+            structure = cls._from_pymatgen_structure(pymatgen_obj)
         
         return structure
         
     @staticmethod   
-    def from_pymatgen_molecule(mol: core.structure.Molecule, margin=5):
+    def _from_pymatgen_molecule(mol: core.structure.Molecule, margin=5):
         """Load the structure from a pymatgen Molecule object.
 
         :param margin: the margin to be added in all directions of the
@@ -169,7 +190,7 @@ class StructureData(Data):
         return structure
 
     @staticmethod
-    def from_pymatgen_structure(struct: core.structure.Structure):
+    def _from_pymatgen_structure(struct: core.structure.Structure):
         """Load the structure from a pymatgen Structure object.
 
         .. note:: periodic boundary conditions are set to True in all
@@ -258,10 +279,10 @@ class StructureData(Data):
         """get a list of properties
 
         Args:
-            domain (str, optional): restrict the domain of the printed property names. Defaults to None.
+            domain (str, optional): restrict the domain of the printed property names. Defaults to None, but can be also 'site'.
         """
         if not domain:
-            return self._global_properties + self.sites[0]._site_properties
+            return self._global_properties + Site._site_properties
         elif domain == "site":
             return self.sites[0]._site_properties
     
@@ -769,11 +790,12 @@ class StructureData(Data):
         
         # I look for identical species only if the name is not specified
         #_kinds = self.kinds
+        
+        for site_position in self.get_site_property("position"):
+            if np.linalg.norm(np.array(position)-np.array(site_position))<1e-3:
+                raise ValueError("You cannot define two different sites to be in the same position!")
 
-        site = Site(# The above code is not complete and seems to be missing the actual code or
-        # context. It appears to have a variable `kind_name` declared but without any
-        # assignment or usage. If you provide more information or context, I can help
-        # explain what the code is intended to do.
+        site = Site(
         symbol=symbol,
         kind_name=kind, 
         position=position, 
@@ -1118,7 +1140,7 @@ class StructureData(Data):
         _kinds = self.get_kind_names()
 
         for site in self.sites:
-            asecell.append(site.get_ase(kinds=_kinds))
+            asecell.append(site.to_ase(kinds=_kinds))
             
         #asecell.set_initial_charges(self.get_site_property("charge"))
           

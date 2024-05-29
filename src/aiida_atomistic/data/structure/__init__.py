@@ -988,45 +988,10 @@ class StructureData(Data):
             return sliced_structure
         else:
             raise TypeError(f"Invalid argument type: {type(index)}")
-    
-    # TOBE deleted  
-    def get_kind(self, kind_name):
-        """Return the kind object associated with the given kind name.
+        
+    def __len__(self,):
+        return len(self.sites)
 
-        :param kind_name: String, the name of the kind you want to get
-
-        :return: The Kind object associated with the given kind_name, if
-           a Kind with the given name is present in the structure.
-
-        :raise: ValueError if the kind_name is not present.
-        """
-        # Cache the kinds, if stored, for efficiency
-        if self.is_stored:
-            try:
-                kinds_dict = self._kinds_cache
-            except AttributeError:
-                self._kinds_cache = {_.name: _ for _ in self.kinds}
-                kinds_dict = self._kinds_cache
-        else:
-            kinds_dict = {_.kind_name: _ for _ in self.sites}
-
-        # Will raise ValueError if the kind is not present
-        try:
-            return kinds_dict[kind_name]
-        except KeyError:
-            raise ValueError(f"Kind name '{kind_name}' unknown")
-    
-    # TOBE deleted  
-    def get_kind_names(self):
-        """Return a list of kind names (in the same order of the ``self.kinds``
-        property, but return the names rather than Kind objects)
-
-        .. note:: This is NOT necessarily a list of chemical symbols! Use
-            get_symbols_set for chemical symbols
-
-        :return: a list of strings.
-        """
-        return [site.kind_name for site in self.sites]
 
     @property
     def cell(self) -> t.List[t.List[float]]:

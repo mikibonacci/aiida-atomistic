@@ -93,7 +93,7 @@ class Site:
         """
         return {site_property: getattr(self,site_property) for site_property in self._site_properties}
 
-    def get_ase(self, kinds):
+    def to_ase(self, kinds):
         """Return a ase.Atom object for this site.
 
         :param kinds: the list of kinds from the StructureData object.

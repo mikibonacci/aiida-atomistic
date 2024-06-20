@@ -12,6 +12,8 @@ except ImportError:
 
 from aiida.common.constants import elements
 
+from typing import Union
+
 _MASS_THRESHOLD = 1.0e-3
 # Threshold to check if the sum is one or not
 _SUM_THRESHOLD = 1.0e-6
@@ -148,7 +150,7 @@ class Site:
         return self._mass
 
     @mass.setter
-    def mass(self, value: float):
+    def mass(self, value: Union[float,int]):
         """Set the mass of this site (a float)."""
         if not isinstance(value, float) and not isinstance(value,int):
             if value is None:
@@ -201,7 +203,7 @@ class Site:
         return copy.deepcopy(self._charge)
 
     @charge.setter
-    def charge(self, value: float | int):
+    def charge(self, value: Union[float,int]):
         """Set the charge of this site in units of elementary charge.
         """
         if not isinstance(value, float) and not isinstance(value,int):
@@ -215,7 +217,7 @@ class Site:
         return copy.deepcopy(self._magnetization)
 
     @magnetization.setter
-    def magnetization(self, value: float | int):
+    def magnetization(self, value: Union[float,int]):
         """Set the magnetization of this site in units of Bohr magneton.
         """
         if not isinstance(value, float) and not isinstance(value,int):

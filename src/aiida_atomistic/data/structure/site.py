@@ -148,7 +148,7 @@ class Site:
         return self._mass
 
     @mass.setter
-    def mass(self, value: float | int):
+    def mass(self, value: float):
         """Set the mass of this site (a float)."""
         if not isinstance(value, float) and not isinstance(value,int):
             if value is None:

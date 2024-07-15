@@ -844,8 +844,8 @@ class StructureData(Data):
         #except AttributeError:
         #    raw_kinds = []
         #return [Kind(raw=i) for i in raw_kinds]
-        return set(get_kinds(structure=self, kind_tags=kind_tags, exclude=exclude, custom_thr=custom_thr)["kinds"])
-    
+        return set(self.get_kinds(kind_tags=kind_tags, exclude=exclude, custom_thr=custom_thr)["kinds"])
+
     def get_kinds(self, kind_tags=[], exclude=[], custom_thr={}):
         """
         Get the list of kinds, taking into account all the properties.
@@ -1228,10 +1228,9 @@ class StructureData(Data):
         import ase
 
         asecell = ase.Atoms(cell=self.cell, pbc=self.pbc)
-        _kinds = self.get_kind_names()
 
         for site in self.sites:
-            asecell.append(site.to_ase(kinds=_kinds))
+            asecell.append(site.to_ase(kinds=self.kinds))
             
         #asecell.set_initial_charges(self.get_site_property("charge"))
           

@@ -16,15 +16,23 @@ try:
     from ase import io as ase_io
 
     has_ase = True
+    ASE_ATOMS_TYPE = ase.Atoms
 except ImportError:
     has_ase = False
+
+    ASE_ATOMS_TYPE = t.Any
 
 try:
     import pymatgen.core as core  # noqa: F401
 
     has_pymatgen = True
+    PYMATGEN_MOLECULE = core.structure.Molecule
+    PYMATGEN_STRUCTURE = core.structure.Structure
 except ImportError:
     has_pymatgen = False
+
+    PYMATGEN_MOLECULE = t.Any
+    PYMATGEN_STRUCTURE = t.Any
 
 
 from aiida_atomistic.data.structure.utils import (
@@ -235,7 +243,7 @@ class StructureDataCore:
         return cls(structure_dict)
 
     @classmethod
-    def from_ase(cls, aseatoms: ase.Atoms):
+    def from_ase(cls, aseatoms: ASE_ATOMS_TYPE):
         """Load the structure from a ASE object"""
 
         if not has_ase:
@@ -267,7 +275,7 @@ class StructureDataCore:
     @classmethod
     def from_pymatgen(
         cls,
-        pymatgen_obj: t.Union[core.structure.Molecule, core.structure.Structure],
+        pymatgen_obj: t.Union[PYMATGEN_MOLECULE, PYMATGEN_STRUCTURE],
         **kwargs,
     ):
         """Load the structure from a pymatgen object.
@@ -278,7 +286,7 @@ class StructureDataCore:
         if not has_pymatgen:
             raise ImportError("The pymatgen package cannot be imported.")
 
-        if isinstance(pymatgen_obj, core.structure.Molecule):
+        if isinstance(pymatgen_obj, PYMATGEN_MOLECULE):
             structure = cls._from_pymatgen_molecule(pymatgen_obj)
         else:
             structure = cls._from_pymatgen_structure(pymatgen_obj)
@@ -286,7 +294,7 @@ class StructureDataCore:
         return structure
 
     @classmethod
-    def _from_pymatgen_molecule(cls, mol: core.structure.Molecule, margin=5):
+    def _from_pymatgen_molecule(cls, mol: PYMATGEN_MOLECULE, margin=5):
         """Load the structure from a pymatgen Molecule object.
 
         :param margin: the margin to be added in all directions of the
@@ -312,7 +320,7 @@ class StructureDataCore:
         return structure
 
     @classmethod
-    def _from_pymatgen_structure(cls, struct: core.structure.Structure):
+    def _from_pymatgen_structure(cls, struct: PYMATGEN_STRUCTURE):
         """Load the structure from a pymatgen Structure object.
 
         .. note:: periodic boundary conditions are set to True in all

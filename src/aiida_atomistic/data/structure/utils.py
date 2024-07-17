@@ -1,6 +1,7 @@
 import copy
-import numpy as np
 import functools
+
+import numpy as np
 
 from aiida.common.constants import elements
 from aiida.common.exceptions import UnsupportedSpeciesError
@@ -11,7 +12,7 @@ except ImportError:
     pass
 
 try:
-    import pymatgen.core  as core # noqa: F401
+    import pymatgen.core as core  # noqa: F401
 except ImportError:
     pass
 
@@ -24,9 +25,9 @@ _SUM_THRESHOLD = 1.0e-6
 # Default cell
 _DEFAULT_CELL = ((0, 0, 0), (0, 0, 0), (0, 0, 0))
 
-_valid_symbols = tuple(i['symbol'] for i in elements.values())
-_atomic_masses = {el['symbol']: el['mass'] for el in elements.values()}
-_atomic_numbers = {data['symbol']: num for num, data in elements.items()}
+_valid_symbols = tuple(i["symbol"] for i in elements.values())
+_atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
+_atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
 
 def _get_valid_cell(inputcell):
@@ -41,12 +42,14 @@ def _get_valid_cell(inputcell):
         if any(len(i) != 3 for i in the_cell):
             raise ValueError
     except (IndexError, ValueError, TypeError):
-        raise ValueError('Cell must be a list of three vectors, each defined as a list of three coordinates.')
+        raise ValueError(
+            "Cell must be a list of three vectors, each defined as a list of three coordinates."
+        )
 
     return the_cell
 
 
-def get_valid_pbc(inputpbc):
+def _get_valid_pbc(inputpbc):
     """Return a list of three booleans for the periodic boundary conditions,
     in a valid format from a generic input.
 
@@ -54,11 +57,11 @@ def get_valid_pbc(inputpbc):
     """
     if isinstance(inputpbc, bool):
         the_pbc = (inputpbc, inputpbc, inputpbc)
-    elif hasattr(inputpbc, '__iter__'):
+    elif hasattr(inputpbc, "__iter__"):
         # To manage numpy lists of bools, whose elements are of type numpy.bool_
         # and for which isinstance(i,bool) return False...
-        if hasattr(inputpbc, 'tolist'):
-            the_value = inputpbc.tolist()
+        if hasattr(inputpbc, "tolist"):
+            the_value = tuple(i for i in inputpbc.tolist())
         else:
             the_value = inputpbc
         if all(isinstance(i, bool) for i in the_value):
@@ -67,11 +70,11 @@ def get_valid_pbc(inputpbc):
             elif len(the_value) == 1:
                 the_pbc = (the_value[0], the_value[0], the_value[0])
             else:
-                raise ValueError('pbc length must be either one or three.')
+                raise ValueError("pbc length must be either one or three.")
         else:
-            raise ValueError('pbc elements are not booleans.')
+            raise ValueError("pbc elements are not booleans.")
     else:
-        raise ValueError('pbc must be a boolean or a list of three booleans.', inputpbc)
+        raise ValueError("pbc must be a boolean or a list of three booleans.", inputpbc)
 
     return the_pbc
 
@@ -121,8 +124,6 @@ def calc_cell_volume(cell):
     :param cell: the cell vectors; the must be a 3x3 list of lists of floats
     :returns: the cell volume.
     """
-    import numpy as np
-
     return np.abs(np.dot(cell[0], np.cross(cell[1], cell[2])))
 
 
@@ -160,9 +161,9 @@ def create_automatic_kind_name(symbols, weights):
     """
     sorted_symbol_list = list(set(symbols))
     sorted_symbol_list.sort()  # In-place sort
-    name_string = ''.join(sorted_symbol_list)
+    name_string = "".join(sorted_symbol_list)
     if has_vacancies(weights):
-        name_string += 'X'
+        name_string += "X"
     return name_string
 
 
@@ -181,7 +182,9 @@ def validate_weights_tuple(weights_tuple, threshold):
     """
     w_sum = sum(weights_tuple)
     if any(i < 0.0 for i in weights_tuple) or (w_sum - 1.0 > threshold):
-        raise ValueError('The weight list is not valid (each element must be positive, and the sum must be <= 1).')
+        raise ValueError(
+            "The weight list is not valid (each element must be positive, and the sum must be <= 1)."
+        )
 
 
 def is_valid_symbol(symbol):
@@ -211,8 +214,9 @@ def validate_symbols_tuple(symbols_tuple):
         valid = all(is_valid_symbol(sym) for sym in symbols_tuple)
     if not valid:
         raise UnsupportedSpeciesError(
-            f'At least one element of the symbol list {symbols_tuple} has not been recognized.'
+            f"At least one element of the symbol list {symbols_tuple} has not been recognized."
         )
+
 
 def group_symbols(_list):
     """Group a list of symbols to a list containing the number of consecutive
@@ -243,7 +247,7 @@ def group_symbols(_list):
     return grouped_list
 
 
-def get_formula_from_symbol_list(_list, separator=''):
+def get_formula_from_symbol_list(_list, separator=""):
     """Return a string with the formula obtained from the list of symbols.
 
     Examples
@@ -260,21 +264,25 @@ def get_formula_from_symbol_list(_list, separator=''):
     list_str = []
     for elem in _list:
         if elem[0] == 1:
-            multiplicity_str = ''
+            multiplicity_str = ""
         else:
             multiplicity_str = str(elem[0])
 
         if isinstance(elem[1], str):
-            list_str.append(f'{elem[1]}{multiplicity_str}')
+            list_str.append(f"{elem[1]}{multiplicity_str}")
         elif elem[0] > 1:
-            list_str.append(f'({get_formula_from_symbol_list(elem[1], separator=separator)}){multiplicity_str}')
+            list_str.append(
+                f"({get_formula_from_symbol_list(elem[1], separator=separator)}){multiplicity_str}"
+            )
         else:
-            list_str.append(f'{get_formula_from_symbol_list(elem[1], separator=separator)}{multiplicity_str}')
+            list_str.append(
+                f"{get_formula_from_symbol_list(elem[1], separator=separator)}{multiplicity_str}"
+            )
 
     return separator.join(list_str)
 
 
-def get_formula_group(symbol_list, separator=''):
+def get_formula_group(symbol_list, separator=""):
     """Return a string with the chemical formula from a list of chemical symbols.
     The formula is written in a compact" way, i.e. trying to group as much as
     possible parts of the formula.
@@ -369,7 +377,9 @@ def get_formula_group(symbol_list, separator=''):
 
         while not has_finished and group_size <= len(_list) // 2:
             # try to group as much as possible by groups of size group_size
-            the_symbol_list, has_grouped = group_together_symbols(the_symbol_list, group_size)
+            the_symbol_list, has_grouped = group_together_symbols(
+                the_symbol_list, group_size
+            )
             has_finished = has_grouped
             group_size += 1
             # stop as soon as we managed to group something
@@ -390,7 +400,7 @@ def get_formula_group(symbol_list, separator=''):
     return get_formula_from_symbol_list(new_symbol_list, separator=separator)
 
 
-def get_formula(symbol_list, mode='hill', separator=''):
+def get_formula(symbol_list, mode="hill", separator=""):
     """Return a string with the chemical formula.
 
     :param symbol_list: a list of symbols, e.g. ``['H','H','O']``
@@ -438,30 +448,40 @@ def get_formula(symbol_list, mode='hill', separator=''):
         initial order in which the atoms were appended by the user is
         used to group and/or order the symbols in the formula
     """
-    if mode == 'group':
+    if mode == "group":
         return get_formula_group(symbol_list, separator=separator)
 
     # for hill and count cases, simply count the occurences of each
     # chemical symbol (with some re-ordering in hill)
-    if mode in ['hill', 'hill_compact']:
-        if 'C' in symbol_list:
-            ordered_symbol_set = sorted(set(symbol_list), key=lambda elem: {'C': '0', 'H': '1'}.get(elem, elem))
+    if mode in ["hill", "hill_compact"]:
+        if "C" in symbol_list:
+            ordered_symbol_set = sorted(
+                set(symbol_list), key=lambda elem: {"C": "0", "H": "1"}.get(elem, elem)
+            )
         else:
             ordered_symbol_set = sorted(set(symbol_list))
-        the_symbol_list = [[symbol_list.count(elem), elem] for elem in ordered_symbol_set]
+        the_symbol_list = [
+            [symbol_list.count(elem), elem] for elem in ordered_symbol_set
+        ]
 
-    elif mode in ['count', 'count_compact']:
-        ordered_symbol_indexes = sorted([symbol_list.index(elem) for elem in set(symbol_list)])
+    elif mode in ["count", "count_compact"]:
+        ordered_symbol_indexes = sorted(
+            [symbol_list.index(elem) for elem in set(symbol_list)]
+        )
         ordered_symbol_set = [symbol_list[i] for i in ordered_symbol_indexes]
-        the_symbol_list = [[symbol_list.count(elem), elem] for elem in ordered_symbol_set]
+        the_symbol_list = [
+            [symbol_list.count(elem), elem] for elem in ordered_symbol_set
+        ]
 
-    elif mode == 'reduce':
+    elif mode == "reduce":
         the_symbol_list = group_symbols(symbol_list)
 
     else:
-        raise ValueError('Mode should be hill, hill_compact, group, reduce, count or count_compact')
+        raise ValueError(
+            "Mode should be hill, hill_compact, group, reduce, count or count_compact"
+        )
 
-    if mode in ['hill_compact', 'count_compact']:
+    if mode in ["hill_compact", "count_compact"]:
         from math import gcd
 
         the_gcd = functools.reduce(gcd, [e[0] for e in the_symbol_list])
@@ -490,9 +510,9 @@ def get_symbols_string(symbols, weights):
 
     pieces = []
     for symbol, weight in zip(symbols, weights):
-        pieces.append(f'{symbol}{weight:4.2f}')
+        pieces.append(f"{symbol}{weight:4.2f}")
     if has_vacancies(weights):
-        pieces.append(f'X{1.0 - sum(weights):4.2f}')
+        pieces.append(f"X{1.0 - sum(weights):4.2f}")
     return f"{{{''.join(sorted(pieces))}}}"
 
 
@@ -521,8 +541,8 @@ def symop_ortho_from_fract(cell):
     import numpy
 
     a, b, c, alpha, beta, gamma = cell
-    alpha, beta, gamma = [math.pi * x / 180 for x in [alpha, beta, gamma]]
-    ca, cb, cg = [math.cos(x) for x in [alpha, beta, gamma]]
+    alpha, beta, gamma = (math.pi * x / 180 for x in [alpha, beta, gamma])
+    ca, cb, cg = (math.cos(x) for x in [alpha, beta, gamma])
     sg = math.sin(gamma)
 
     return numpy.array(
@@ -549,8 +569,8 @@ def symop_fract_from_ortho(cell):
     import numpy
 
     a, b, c, alpha, beta, gamma = cell
-    alpha, beta, gamma = [math.pi * x / 180 for x in [alpha, beta, gamma]]
-    ca, cb, cg = [math.cos(x) for x in [alpha, beta, gamma]]
+    alpha, beta, gamma = (math.pi * x / 180 for x in [alpha, beta, gamma])
+    ca, cb, cg = (math.cos(x) for x in [alpha, beta, gamma])
     sg = math.sin(gamma)
     ctg = cg / sg
     D = math.sqrt(sg * sg - cb * cb - ca * ca + 2 * ca * cb * cg)  # noqa: N806
@@ -593,18 +613,20 @@ def ase_refine_cell(aseatoms, **kwargs):
     unique_numbers = []
     unique_positions = []
 
-    for i in set(sym_dataset['equivalent_atoms']):
+    for i in set(sym_dataset["equivalent_atoms"]):
         unique_numbers.append(numbers[i])
         unique_positions.append(positions[i])
 
-    unique_atoms = Atoms(unique_numbers, scaled_positions=unique_positions, cell=cell, pbc=True)
+    unique_atoms = Atoms(
+        unique_numbers, scaled_positions=unique_positions, cell=cell, pbc=True
+    )
 
     return unique_atoms, {
-        'hm': sym_dataset['international'],
-        'hall': sym_dataset['hall'],
-        'tables': sym_dataset['number'],
-        'rotations': sym_dataset['rotations'],
-        'translations': sym_dataset['translations'],
+        "hm": sym_dataset["international"],
+        "hall": sym_dataset["hall"],
+        "tables": sym_dataset["number"],
+        "rotations": sym_dataset["rotations"],
+        "translations": sym_dataset["translations"],
     }
 
 
@@ -627,21 +649,34 @@ def atom_kinds_to_html(atom_kind):
     # it takes strings generated with kind.get_symbols_string())
     import re
 
-    matched_elements = re.findall(r'([A-Z][a-z]*)([0-1][.[0-9]*]?)?', atom_kind)
+    matched_elements = re.findall(r"([A-Z][a-z]*)([0-1][.[0-9]*]?)?", atom_kind)
 
     # Compose the html string
     html_formula_pieces = []
 
     for element in matched_elements:
         # replace element X by 'vacancy'
-        species = element[0] if element[0] != 'X' else 'vacancy'
-        weight = element[1] if element[1] != '' else None
+        species = element[0] if element[0] != "X" else "vacancy"
+        weight = element[1] if element[1] != "" else None
 
         if weight is not None:
-            html_formula_pieces.append(f'{species}<sub>{weight}</sub>')
+            html_formula_pieces.append(f"{species}<sub>{weight}</sub>")
         else:
             html_formula_pieces.append(species)
 
-    html_formula = ' + '.join(html_formula_pieces)
+    html_formula = " + ".join(html_formula_pieces)
 
     return html_formula
+
+
+def create_automatic_kind_name(symbols, weights):
+    """Create a string obtained with the symbols appended one
+    after the other, without spaces, in alphabetical order;
+    if the site has a vacancy, a X is appended at the end too.
+    """
+    sorted_symbol_list = list(set(symbols))
+    sorted_symbol_list.sort()  # In-place sort
+    name_string = "".join(sorted_symbol_list)
+    if has_vacancies(weights):
+        name_string += "X"
+    return name_string

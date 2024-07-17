@@ -51,9 +51,10 @@ docs = [
     'sphinx-autoapi~=3.0.0',
     'myst_parser~=1.0.0',
 ]
+
 [project.entry-points."aiida.data"]
-"atomistic" = "aiida_atomistic.data:DiffParameters"
-"atomistic.structure" = "aiida_atomistic.data.structure:StructureData"
+"atomistic.StructureData" = "aiida_atomistic.data.structure.core:StructureData"
+"atomistic.StructureDataMutable" = "aiida_atomistic.data.structure.mutable:StructureDataMutable"
 
 [project.entry-points."aiida.calculations"]
 "atomistic" = "aiida_atomistic.calculations:DiffCalculation"

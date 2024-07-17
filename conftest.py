@@ -20,27 +20,37 @@ def supported_properties():
     """
     Should be updated every time I add properties.
     """
-    return ['cell', 'pbc', 'positions',  'symbols', 'mass', 'charge', 'custom']
+    return [
+        "cell",
+        "pbc",
+        "position",
+        "symbol",
+        "mass",
+        "charge",
+        "magmom",
+        "kind_name",
+        "weight",
+    ]
 
 
 @pytest.fixture
-def example_properties():
+def example_structure_dict():
     """
     Return the dictionary of properties as to be used in the standards tests.
     """
-    unit_cell = [[3.5, 0.0, 0.0], [0.0, 3.5, 0.0], [0.0, 0.0, 3.5]]
-    atomic_positions = [[0.0, 0.0, 0.0],[1.5, 1.5, 1.5]]
-    symbols = ["Li"]*2
-    mass = [6.941,6.941]
-    charge = [1,0]
+    structure_dict = {
+        "pbc": (True, True, True),
+        "cell": [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]],
+        "sites": [
+            {
+                "symbol": "Cu",
+                "kind_name": "Cu2",
+                "position": [0.0, 0.0, 0.0],
+                "mass": 63.546,
+                "charge": 1.0,
+                "magmom": 0.0,
+            }
+        ],
+    }
 
-    properties = {
-        "cell":{"value":unit_cell},
-        "pbc":{"value":[True,True,True]},
-        "positions":{"value":atomic_positions,},
-        "symbols":{"value":symbols},
-        "mass":{"value":mass,},
-        "charge":{"value":charge}
-        }
-    
-    return properties
+    return structure_dict

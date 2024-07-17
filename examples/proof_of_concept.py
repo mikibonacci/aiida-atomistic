@@ -12,8 +12,8 @@
 # As both `StructureData` and `StructureDataMutable` share the same data structure, they also share the same constructor input parameter, which is just a python dictionary. The format of this dictionary exactly reflects how the data are store in the AiiDA database:
 
 # +
-from aiida_atomistic.data.structure.core import StructureData
-from aiida_atomistic.data.structure.mutable import StructureDataMutable
+from aiida_atomistic import StructureData
+from aiida_atomistic import StructureDataMutable
 
 from aiida import load_profile
 load_profile()

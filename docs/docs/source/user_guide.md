@@ -1,221 +1,222 @@
-# User guide on the StructureData class
+# The new `StructureData` API
 
-The atomistic `StructureData` class is basically an enhanced version of the `orm.StructureData`, which was implemented in `aiida-core`. 
-Relevant changes are:
+## The `atomistic.StructureData` and `atomistic.StructureDataMutable` classes
 
-- introduction of the `properties` attribute, used to store all the properties associated to the crystal structure;
-- dropped the kind-based definition of the atoms, *no more supported* in favour of a code-agnostic site-based definition of the properties;
-- the StructureData node is now really a *data container*, meaning that we do not have methods to modify it after its creation, i.e. it is *immutable* even before we store the node in the AiiDA database; 
-explanation on this decisions can be found in the following.
+Two main rules: (i) immutability, and (ii) site-based. This means that our node will be just a container of the crystal structure + properties, and it cannot really be modified in any way.
+We will only provide `from_*`, `get_*` and `to_*` methods. Each site property will be defined as site-based and not kind-based, at variance with the old `orm.StructureData`. Kinds now can be defined as a property of each site (`kind_name`).
+
+The idea is to provide another python class which is just the mutable version of the `atomistic.StructureData` used to build, manipulate the crystal structure before the effective AiiDA node initialization. For now, let's call this class `StructureDataMutable`. This two classes have the same data structure, i.e. the same `properties` and the same `from_*`, `get_*` and `to_*` methods. The only difference is that the `atomistic.StructureDataMutable` has also `set_*` methods which can be used to mutate the properties. **Rule**: no property can be modified directly (i.e. accessing it); this is useful to avoid the introduction of inconsistencies in the structure instance.
 
 
-<div style="border:2px solid #f7d117; padding: 10px; margin: 10px 0;">
-    <strong>Site-based definition of properties:</strong> this simplifies multiple properties defintion and respect the philosophy of a code-agnostic data for the structure. The kinds determination can be done using the built-in `get_kinds()` method of the StructureData. It is also possible to provide a user-defined set of kinds via *tags*.
-</div>
+## How to initialize the `StructureData`(s)
 
-### Properties
-Properties are divided in three main domains:  *global*, *intra-site*, and *inter-site*, e.g.:
+As both `StructureData` and `StructureDataMutable` share the same data structure, they also share the same constructor input parameter, which is just a python dictionary. The format of this dictionary exactly reflects how the data are store in the AiiDA database:
 
-global:
+```python=
 
-  - cell
-  - periodic boundary conditions (PBC)
+from aiida_atomistic.data.structure.core import StructureData
+from aiida_atomistic.data.structure.mutable import StructureDataMutable
 
-intra-site:
+structure_dict = {
+    'cell':[[2.75,2.75,0],[0,2.75,2.75],[2.75,0,2.75]],
+    'pbc': [True,True,True],
+    'sites':[
+        {
+            'symbol':'Si',
+            'position':[3/4, 3/4, 3/4],
+        },
+        {
+            'symbol':'Si',
+            'position':[1/2, 1/2, 1/2],
+        },
+    ],
+}
 
-  - positions
-  - symbols 
-  - masses
-  - charge
-  - magnetization - TOBE added
-  - Hubbard U parameters - TOBE added
-
-inter-site:
-
-  - Hubbard V parameters - TOBE added 
-
-Some of these properties are related to the sites/atoms (e.g. atomic positions, symbols, electronic charge) and some are related to the whole structure (e.g. PBC, cell). So, each property will have an attribute `domain`, which can be "intra-site", "inter-site", "global". 
-
-### Custom properties
-The possibility to have user defined custom properties is discussed in another section (TOBE added).
-
-## The first StructureData instance
-One of the principle of the new StructureData is the fact that it is "just" a container of the information about a given structure: this means that, after that instances of this class are immutable. After the initialization, it is not possible to change the stored properties.
-
-Properties should be contained in a dictionary, where the value of each defined property is defined under the corresponding dictionary, under the key `value`:
-
-```python
-from aiida import orm, load_profile
-load_profile()
-
-from aiida_atomistic.data.structure import StructureData
-
-properties_dict = {
-    "cell":{"value":[[3.5, 0.0, 0.0], [0.0, 3.5, 0.0], [0.0, 0.0, 3.5]]},
-    "pbc":{"value":[True,True,True]},
-    "positions":{"value":[[0.0, 0.0, 0.0],[1.5, 1.5, 1.5]]},
-    "symbols":{"value":["Li","Li"]},
-    }
+mutable_structure = StructureDataMutable(data=structure_dict)
+structure = StructureData(data=structure_dict)
 ```
 
-Then we can initialise the StructureData instance:
+When this dictionary is provided to the constructor, validation check for each of the provided property is done (**for now, only pbc and cell**).
+Then, you can access the properties directly:
 
-```python
-structure = StructureData(properties = properties_dict)
-print(f"The cell property class: \n{structure.properties.cell}\n")
-print(f"The cell property value: \n{structure.properties.cell.value}\n")
-print(f"The cell property domain: \n{structure.properties.cell.domain}\n")
+```python=
+print("immutable pbc: ",structure.pbc)
+print("mutable pbc: ",structure.pbc)
 
-print(f"The positions property class: \n{structure.properties.positions}\n")
-print(f"The positions property value: \n{structure.properties.positions.value}\n")
-print(f"The positions property domain: \n{structure.properties.positions.domain}\n")
+print("immutable cell: ",structure.cell)
+print("mutable cell: ",structure.cell)
+
+print("immutable sites: ",structure.sites)
+print("mutable sites: ",structure.sites)
 ```
 
-A list of supported and stored properties can be printed:
+the expected output is:
 
-```python
-print(f"The whole list of currently supported properties is: \n{StructureData().properties.get_supported_properties()}")
-print(f"Stored properties are: \n{structure.properties.get_stored_properties()}")
+```shell=
+immutable pbc:  [ True  True  True]
+mutable pbc:  [ True  True  True]
+immutable cell:  [[2.75 2.75 0.  ]
+ [0.   2.75 2.75]
+ [2.75 0.   2.75]]
+mutable cell:  [[2.75 2.75 0.  ]
+ [0.   2.75 2.75]
+ [2.75 0.   2.75]]
+immutable sites:  [<Site: kind name 'Si' @ 0.75,0.75,0.75>, <Site: kind name 'Si' @ 0.5,0.5,0.5>]
+mutable sites:  [<Site: kind name 'Si' @ 0.75,0.75,0.75>, <Site: kind name 'Si' @ 0.5,0.5,0.5>]
 ```
 
-## StructureData as a data container - immutability
+To inspect the properties of a single site, we can access it:
 
-We already anticipated that the StructureData is just a data container, .i.e. is immutable. This is a safety measure needed to 
-avoid unpredicted behavior of a step-by-step data manipulation, which moreover may introduce incosistencies among the various properties.
-In this way, only an initial consistency check can be performed among the whole set of defined properties. 
-
-The StructureData is a *read-only* type of Data. 
-All of the following command will produce an exception:
-
-```python
-structure.properties.cell.value = [[1,2,3],[1,2,3],[1,2,3]]
-structure.properties.cell = [[1,2,3],[1,2,3],[1,2,3]]
+```python=
+print(structure.sites[0].symbol,structure.sites[0].position) # output: Si [0.75 0.75 0.75]
 ```
 
-## The `to_dict()` method
+All the properties can be accessed via tab completion, and a list of the supported properties can be accessed via `structure.get_property_names()`.
 
-A crucial aspect of the new `StructureData` is that it is immutable even if the node is not stored, i.e. the API does not support on-the-fly or interactive modifications (it will raise errors). This helps in avoiding unexpected 
-behaviour coming from a step-by-step defintion of the structure, e.g. incosistencies between properties definitions, which are then not cross-checked again.
+For now, other supported properties are `charge` (not yet `tot_charge`), `kind_name`, `mass`.
+For example, we can initialize a charged structure in this way:
 
-To modify the related properties, one has to define a new `StructureData` instance by scratch.
-To make user life simpler, we provide a `to_dict` method, which can be used to generate the properties dictionary:
 
-```python
+```python=
+structure_dict = {
+    'cell':[[2.75,2.75,0],[0,2.75,2.75],[2.75,0,2.75]],
+    'pbc': [True,True,True],
+    'sites':[
+        {
+            'symbol':'Si',
+            'position':[3/4, 3/4, 3/4],
+            'charge': +1,
+            'kind_name': 'Si2',
+        },
+        {
+            'symbol':'Si',
+            'position':[1/2, 1/2, 1/2],
+            'kind_name': 'Si1',
+        },
+    ],
+}
+
+mutable_structure = StructureDataMutable(data=structure_dict)
+structure = StructureData(data=structure_dict)
+```
+
+then, `structure.sites[0].charge` will be equal to 1. When the plugins will be adapted, with this information we can build the correct input file for the corresponding quantum engine.
+
+### Initialization from ASE or Pymatgen
+
+If we already have an ASE Atoms or a Pymatgen Structure object, we can use the `from_ase` and `from_pymatgen` methods:
+
+```python=
+from ase.build import bulk
+atoms = bulk('Cu', 'fcc', a=3.6)
+atoms.set_initial_charges([1,])
+atoms.set_tags(["2"])
+
+mutable_structure = StructureDataMutable.from_ase(atoms)
+structure = StructureData.from_ase(atoms)
+
 structure.to_dict()
 ```
 
-The dictionary can be changed and used directly to generate a new instance:
+This should have as output:
 
-```python
-new_properties_dict = structure.to_dict()
-new_properties_dict["pbc"] = {"value":[True,True,False]}
-new_properties_dict["cell"]["value"][2] = [0,0,15]
-
-new_structure = StructureData(properties=new_properties_dict)
-
-print(f"The cell property value: \n{new_structure.properties.cell.value}\n")
+```shell=
+{'pbc': (True, True, True),
+ 'cell': [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]],
+ 'sites': [{'symbol': 'Cu',
+   'kind_name': 'Cu2',
+   'position': [0.0, 0.0, 0.0],
+   'mass': 63.546,
+   'charge': 1.0,
+   'magmom': 0.0}]}
 ```
 
-## Kinds
+This support also the properties like charges (coming soon: magmoms and so on). In the same way, for pymatgen we can proceed as follows:
 
-It is possible to define kinds as a property:
+```python=
+from pymatgen.core import Lattice, Structure, Molecule
 
-```python
-properties = {'cell': {'value': [[3.5, 0.0, 0.0], [0.0, 3.5, 0.0], [0.0, 0.0, 3.5]]},
- 'pbc': {'value': [True, True, True]},
- 'positions': {'value': [[0.0, 0.0, 0.0], [1.5, 1.5, 1.5]]},
- 'symbols': {'value': ['Li', 'Li']},
- 'mass': {'value': [6.941, 6.941]},
- 'charge': {'value': [1.0, 0.0]},
- 'kinds': {'value': ['Li0', 'Li1']}}
+coords = [[0, 0, 0], [0.75,0.5,0.75]]
+lattice = Lattice.from_parameters(a=3.84, b=3.84, c=3.84, alpha=120,
+                                  beta=90, gamma=60)
+struct = Structure(lattice, ["Si", "Si"], coords)
+
+struct.add_oxidation_state_by_site([1,0])
+
+mutable_structure = StructureDataMutable.from_pymatgen(struct)
+
+mutable_structure.to_dict()
 ```
 
-A consistency check is done to see if we have not defined sites with different value of the properties to have the same kind. This would create inconsistencies in plugins.
+the output being:
 
-## Automatic kinds detection
-
-By default, if no kinds are provided in the properties, these will be generated automatically and put in the StructureData properties. The only drawback is that then properties value may change with respect to the default associated threshold. 
-It is possible to avoid this by setting `allow_kinds`=False when we generate the StructureData instance.
-
-```python
-structure_with_kinds = StructureData(properties=new_properties, allow_kinds=False)
+```shell=
+{'pbc': (True, True, True),
+ 'cell': [[3.84, 0.0, 2.351321854362918e-16],
+  [1.92, 2.7152900397563426, -1.919999999999999],
+  [0.0, 0.0, 3.84]],
+ 'sites': [{'symbol': 'Si',
+   'weights': 28.0855,
+   'position': [0.0, 0.0, 0.0],
+   'charge': 1,
+   'kind_name': 'Si'},
+  {'symbol': 'Si',
+   'weights': 28.0855,
+   'position': [3.84, 1.3576450198781713, 1.9200000000000006],
+   'charge': 0,
+   'kind_name': 'Si0'}]}
 ```
 
-### The `get_kinds()` method
+Moreover, we also provide `to_ase` and `to_pymatgen` methods to obtain the corresponding instances. Also this methods for now only support charges, among the new properties.
 
-It is possible to get a list of kinds using the `get_kinds` method. 
-This will generate the corresponding predicted kinds for all the properties (the "intra-site" ones) 
-and then generate the list of global different kinds.
+## Mutation of a structure
 
-This method should be used in the plugins which requires a kind-based definition of properties, e.g. the aiida-quantumespresso one.
+Let's suppose you want to update some property in the `StructureData` before to use it in a calculation. You cannot. The way to go is either to use ASE or Pymatgen to modify you object and store it back into `StructureData`, or to use the `StructureDataMutable` and its mutation methods, and then convert it into `StructureData`.
+The latter method is the preferred one, as you then have support also for additional properties (to be implemented) like hubbard, which is not supported by the former.
 
-```python
-unit_cell = [[3.5, 0.0, 0.0], [0.0, 3.5, 0.0], [0.0, 0.0, 3.5]]
-atomic_positions = [[0.0, 0.0, 0.0],[1.5, 1.5, 1.5]]
-symbols = ["Li"]*2
-mass = [6.941,6.941]
-charge = [1,0]
+`StructureDataMutable` contains several `set_` methods and more, needed to update a structure:
 
-properties = {
-    "cell":{"value":unit_cell},
-    "pbc":{"value":[True,True,True]},
-    "positions":{"value":atomic_positions,},
-    "symbols":{"value":symbols},
-    "mass":{"value":mass,},
-    "charge":{"value":charge}
-    }
+```python=
+from aiida import orm
+structure = orm.load_node(<StructureData pk>)
 
-structure = StructureData(
-        properties=properties
-        )
-kinds = structure.get_kinds()
+mutable_structure = structure.to_mutable_structuredata()
+mutable_structure.set_charges([1,0])
+mutable_structure.set_kind_names(['Si2','Si1'])
 
-print(kinds)
+new_structure = mutable_structure.to_structuredata()
 ```
 
-**Please note**: the kinds generation done in this way will change the value of the properties in such a way to match the tolerance threshold for each property. See below the instructions on how to change the threshold for a given property.
+Other available methods are `add_atom`, `pop_atom`, `update_site` and so on.
+Indeed, we can also start from scratch:
 
-#### Specification of default threshold for the kinds
-It is possible to specify a custom threshold for a given property, if needed.
-See the following example:
+```python=
+mutable_structure = StructureDataMutable()
+mutable_structure.set_cell([[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]])
+mutable_structure.add_atom({
+            'symbol':'Si',
+            'position':[3/4, 3/4, 3/4],
+            'charge': 1,
+            'kind_name': 'Si2'
+        })
 
-```python
-print(structure.properties.charge.default_kind_threshold)
-
-kinds = structure.get_kinds(custom_thr={"charge":2})
-print(kinds)
+mutable_structure.add_atom({
+            'symbol':'Si',
+            'position':[1/2, 1/2, 1/2],
+            'charge': 0,
+            'kind_name': 'Si1'
+        })
 ```
 
-#### Specification of `kind_tags`
 
-We can assign tags to each atom, in such a way to override results of the `get_kinds` method. If we define a tag for 
-each atom of the structure, the method will return unchanged value of the properties
-with the desired tags.
+## Slicing a structure
 
-```python
-kinds = structure.get_kinds(kind_tags=["Li1","Li2"])
+It is possible to *slice* a structure, i.e. returning only a part of it (in terms of sites). Let's that you have an heterostructure and you want to obtain only the first layer, composed of the first 4 atoms over 10 total. This works for both `StructureDataMutable` and `StructureData` (we return a new `StructureData` instance).
 
-print(kinds)
+```python=
+sliced_structure = structure[:4]
 ```
 
-It is possible also to exclude one property, when we determine kinds (maybe we ignore it in the plugin):
+## Backward compatibility support
 
-```python
-kinds = structure.get_kinds(exclude=["charge"])
-
-print(kinds)
-```
-
-It is possible to combine the `to_dict` and the `get_kinds` methods, in such a way to have a ready-to-use dictionary with also the kinds, automatically generated:
-
-```python
-new_properties = structure.to_dict(generate_kinds= True, kinds_exclude=['mass'],kinds_thresholds={"charge":1.5})
-print(new_properties)
-
-structure_with_kinds = StructureData(properties=new_properties)
-structure_with_kinds.properties.kinds
-```
-
-### The `to_legacy_structuredata` method
-
-Used to obtain the orm.StructureData from the atomistic one. Temporary method used to be able to run easily aiida-quantumespresso, aiida-pseudo.
+We can use the `to_legacy` method to return the corresponding `orm.StructureData` instance, in case a given plugin does not yet support the new `StructureData`.

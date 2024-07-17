@@ -210,7 +210,12 @@ class Site:
     def magmom(self, value: list):
         """Set the magmom of this site in units of Bohr magneton."""
         if not isinstance(value, list):
-            raise ValueError(
+            
+            if isinstance(value, (int, float)):
+                value = [value, 0, 0]
+                
+            else:
+                raise ValueError(
                 f"Wrong format for magmom, must be a list not {type(value)}."
             )
         self._magmom = value

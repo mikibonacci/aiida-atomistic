@@ -33,7 +33,7 @@ def test_structure_initialization(example_structure_dict):
 
     # (2)
     for structure_type in [StructureDataMutable, StructureData]:
-        structure = structure_type(data=example_structure_dict)
+        structure = structure_type(**example_structure_dict)
 
         assert isinstance(
             structure, structure_type
@@ -53,7 +53,7 @@ def test_valid_and_stored_properties(supported_properties, example_structure_dic
     NB: if pbc and cell are  not provided, this test will except, as it will then define the default pbc and cell.
     """
     for structure_type in [StructureDataMutable, StructureData]:
-        structure = structure_type(data=example_structure_dict)
+        structure = structure_type(**example_structure_dict)
 
         assert set(structure.get_property_names()) == set(supported_properties)
 
@@ -65,7 +65,7 @@ def test_to_dict_method(example_structure_dict):
     NB: if pbc and cell are  not provided, this test will except, as it will then define the default pbc and cell.
     """
     for structure_type in [StructureDataMutable, StructureData]:
-        structure = structure_type(data=example_structure_dict)
+        structure = structure_type(**example_structure_dict)
 
         returned_dict = structure.to_dict()
 

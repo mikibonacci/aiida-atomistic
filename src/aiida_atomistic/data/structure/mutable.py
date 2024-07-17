@@ -14,10 +14,20 @@ class StructureDataMutable(StructureDataCore):
     contains mutation methods.
     It has the same data structure of the StructureData, so in
     principle we can also use automatic aiida data type serialization.
+
+    :param pbc: A list of three boolean values indicating the periodic boundary conditions (PBC)
+                for each spatial dimension. If not provided, defaults to (True, True, True).
+    :param cell: A 3x3 matrix (list of lists) representing the lattice vectors of the cell.
+                 If not provided, a default cell matrix (_DEFAULT_CELL) will be used.
+    :param sites: A list of Site objects representing the atomic positions and species within the structure.
+                  If not provided, an empty list will be used.
     """
 
-    def __init__(self, data={}):
-        super().__init__(data)
+    def __init__(self,
+                 pbc: t.Optional[list[bool]] = None,
+                 cell: t.Optional[list[list[float]]] = None,
+                 sites: t.Optional[list[Site]] = None):
+        super().__init__(pbc, cell, sites)
 
     def set_pbc(self, value):
         """Set the periodic boundary conditions."""
@@ -92,4 +102,4 @@ class StructureDataMutable(StructureDataCore):
             raise IndexError("pop_atom index out of range")
 
     def to_structuredata(self):
-        return StructureData(self.to_dict())
+        return StructureData(**self.to_dict())

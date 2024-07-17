@@ -113,6 +113,13 @@ class StructureDataCore:
     Also, the validation methods should be here.
 
     we can also remove all the setter methods and just provide set_* in mutable.
+
+    :param pbc: A list of three boolean values indicating the periodic boundary conditions (PBC)
+                for each spatial dimension. If not provided, defaults to (True, True, True).
+    :param cell: A 3x3 matrix (list of lists) representing the lattice vectors of the cell.
+                 If not provided, a default cell matrix (_DEFAULT_CELL) will be used.
+    :param sites: A list of Site objects representing the atomic positions and species within the structure.
+                  If not provided, an empty list will be used.
     """
 
     _dimensionality_label = {0: "", 1: "length", 2: "surface", 3: "volume"}
@@ -122,11 +129,15 @@ class StructureDataCore:
         "pbc",
     ]
 
-    def __init__(self, data: dict):
+    def __init__(self,
+                 pbc: t.Optional[list[bool]] = None,
+                 cell: t.Optional[list[list[float]]] = None,
+                 sites: t.Optional[list[Site]] = None):
         self._data = {}
-        self._data["pbc"] = _get_valid_pbc(data.get("pbc", (True, True, True)))
-        self._data["cell"] = _get_valid_cell(data.get("cell", _DEFAULT_CELL))
-        self._data["sites"] = data.get("sites", [])  # _get_valid_sites...
+        
+        self._data["pbc"] = (True, True, True) if pbc is None else _get_valid_pbc(pbc)
+        self._data["cell"] = _DEFAULT_CELL if cell is None else _get_valid_cell(cell)
+        self._data["sites"] = [] if sites is None else sites   # _get_valid_sites...
         # validation should happen here.
 
     # primary properties:
@@ -240,7 +251,7 @@ class StructureDataCore:
 
     @classmethod
     def from_dict(cls, structure_dict: dict):
-        return cls(structure_dict)
+        return cls(**structure_dict)
 
     @classmethod
     def from_ase(cls, aseatoms: ASE_ATOMS_TYPE):
@@ -260,7 +271,7 @@ class StructureDataCore:
             new_site = Site.atom_to_site(ase=atom)
             data["sites"].append(new_site)
 
-        structure = cls(data=data)
+        structure = cls(**data)
 
         return structure
 
@@ -409,7 +420,7 @@ class StructureDataCore:
 
             inputs["sites"].append(site_info)
 
-        structure = cls(data=inputs)
+        structure = cls(**inputs)
 
         return structure
 
@@ -1377,10 +1388,20 @@ class StructureData(Data, StructureDataCore):
     """
     The idea is that this class has the same as StructureDataMutable, but does not allow methods to change it.
     We should find a way to hide that methods. or better, we can provide a MixinClass to the helper.
+
+    :param pbc: A list of three boolean values indicating the periodic boundary conditions (PBC)
+                for each spatial dimension. If not provided, defaults to (True, True, True).
+    :param cell: A 3x3 matrix (list of lists) representing the lattice vectors of the cell.
+                 If not provided, a default cell matrix (_DEFAULT_CELL) will be used.
+    :param sites: A list of Site objects representing the atomic positions and species within the structure.
+                  If not provided, an empty list will be used.
     """
 
-    def __init__(self, data: dict):
-        StructureDataCore.__init__(self, data)
+    def __init__(self,
+                 pbc: t.Optional[list[bool]] = None,
+                 cell: t.Optional[list[list[float]]] = None,
+                 sites: t.Optional[list[Site]] = None):
+        StructureDataCore.__init__(self, pbc, cell, sites)
         Data.__init__(self)
 
         for prop, value in self._data.items():
@@ -1389,4 +1410,4 @@ class StructureData(Data, StructureDataCore):
     def to_mutable_structuredata(self):
         from .mutable import StructureDataMutable
 
-        return StructureDataMutable(self.to_dict())
+        return StructureDataMutable(**self.to_dict())

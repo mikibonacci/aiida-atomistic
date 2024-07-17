@@ -32,8 +32,8 @@ structure_dict = {
     ],
 }
 
-mutable_structure = StructureDataMutable(data=structure_dict)
-structure = StructureData(data=structure_dict)
+mutable_structure = StructureDataMutable(**structure_dict)
+structure = StructureData(**structure_dict)
 ```
 
 When this dictionary is provided to the constructor, validation check for each of the provided property is done (**for now, only pbc and cell**).
@@ -96,8 +96,8 @@ structure_dict = {
     ],
 }
 
-mutable_structure = StructureDataMutable(data=structure_dict)
-structure = StructureData(data=structure_dict)
+mutable_structure = StructureDataMutable(**structure_dict)
+structure = StructureData(**structure_dict)
 ```
 
 then, `structure.sites[0].charge` will be equal to 1. When the plugins will be adapted, with this information we can build the correct input file for the corresponding quantum engine.

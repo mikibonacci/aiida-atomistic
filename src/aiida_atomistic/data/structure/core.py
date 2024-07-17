@@ -47,26 +47,6 @@ _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
 
-def immutability_cloak(attribute):
-    @functools.wraps(attribute)
-    def wrapper_immutability_cloak(self, value):
-        if isinstance(self, StructureData):
-            from aiida.common.exceptions import ModificationNotAllowed
-
-            raise ModificationNotAllowed(
-                "The StructureData object cannot be modified, it is immutable.\n \
-                If you want to modify a structure object, use StructureDataMutable object and then\n \
-                transform it into StructureData node via the `to_structuredata` method."
-            )
-        else:
-            raise NotImplementedError(
-                "Direct modification is not implemented. \n \
-                To change the property, please use the corresponding `set_<property>` method of the StructureDataMutable class."
-            )
-
-    return wrapper_immutability_cloak
-
-
 def get_from_db(attribute):
     @functools.wraps(attribute)
     def wrapper_property(self):
@@ -114,11 +94,41 @@ class StructureDataCore:
         "pbc",
     ]
 
-    def __init__(self, data: dict):
+    def __init__(
+        self, 
+        pbc: tuple[bool] = (True, True, True),
+        cell: t.List[t.List[float]] = _DEFAULT_CELL,
+        sites: t.List[dict | Site] = [],
+    ):
+        """
+        Initialize a Structure object.
+
+        Args:
+            pbc (tuple[bool], optional): A tuple of three booleans indicating whether periodic boundary conditions
+                are applied along each direction. Defaults to (True, True, True).
+            cell (List[List[float]], optional): The unit cell of the structure represented as a 3x3 matrix.
+                Defaults to _DEFAULT_CELL.
+            sites (List[dict | Site], optional): A list of site dictionaries or Site objects representing the atomic
+                sites in the structure. Defaults to an empty list.
+
+        Notes:
+        - The `pbc` argument determines whether the structure is considered to have periodic boundary conditions
+            along each direction. If `pbc` is set to False along a particular direction, that direction is considered
+            to have open boundary conditions.
+        - The `cell` argument represents the unit cell of the structure. It should be a 3x3 matrix where each row
+            corresponds to a lattice vector.
+        - The `sites` argument represents the atomic sites in the structure. Each site can be specified as a dictionary
+            or as a `Site` object. The dictionary should contain the keys 'kind_name', 'position', and 'weights'.
+            The 'kind_name' key should correspond to the name of the atomic kind associated with the site.
+            The 'position' key should contain the Cartesian coordinates of the site.
+            The 'weights' key should contain the weights associated with the site, which are used in calculations
+            involving multiple sites of the same kind.
+        """
+        
         self._data = {}
-        self._data["pbc"] = _get_valid_pbc(data.get("pbc", (True, True, True)))
-        self._data["cell"] = _get_valid_cell(data.get("cell", _DEFAULT_CELL))
-        self._data["sites"] = data.get("sites", [])  # _get_valid_sites...
+        self._data["pbc"] = _get_valid_pbc(pbc)
+        self._data["cell"] = _get_valid_cell(cell)
+        self._data["sites"] = sites  # _get_valid_sites...
         # validation should happen here.
 
     # primary properties:
@@ -135,11 +145,6 @@ class StructureDataCore:
         """
         return self._data["pbc"]
 
-    @pbc.setter
-    @immutability_cloak
-    def pbc(self, value: tuple[bool]):
-        """Set the periodic boundary conditions."""
-        raise NotImplementedError("Direct modification is not implemented.")
 
     @property
     @get_from_db
@@ -150,11 +155,6 @@ class StructureDataCore:
         """
         return self._data["cell"]
 
-    @cell.setter
-    @immutability_cloak
-    def cell(self, value):
-        """Set the cell."""
-        raise NotImplementedError("Direct modification is not implemented.")
 
     @property
     @get_from_db
@@ -165,12 +165,6 @@ class StructureDataCore:
         except AttributeError:
             raw_sites = []
         return [Site(raw=i) for i in raw_sites]
-
-    @sites.setter
-    @immutability_cloak
-    def sites(self, value):
-        """Set the sites."""
-        raise NotImplementedError("Direct modification is not implemented.")
 
     # derived properties:
 
@@ -186,10 +180,6 @@ class StructureDataCore:
             numpy.linalg.norm(cell[2]),
         ]
 
-    @cell_lengths.setter
-    @immutability_cloak
-    def cell_lengths(self, value):
-        raise NotImplementedError("Direct modification is not implemented.")
 
     @property
     def cell_angles(self):
@@ -207,10 +197,6 @@ class StructureDataCore:
             ]
         ]
 
-    @cell_angles.setter
-    @immutability_cloak
-    def cell_angles(self, value):
-        raise NotImplementedError("Direct modification is not implemented.")
 
     @property
     def is_alloy(self):
@@ -252,7 +238,7 @@ class StructureDataCore:
             new_site = Site.atom_to_site(ase=atom)
             data["sites"].append(new_site)
 
-        structure = cls(data=data)
+        structure = cls(**data)
 
         return structure
 
@@ -474,37 +460,37 @@ class StructureDataCore:
             assume one of the following values:
 
             * 'hill' (default): count the number of atoms of each species,
-              then use Hill notation, i.e. alphabetical order with C and H
-              first if one or several C atom(s) is (are) present, e.g.
-              ``['C','H','H','H','O','C','H','H','H']`` will return ``'C2H6O'``
-              ``['S','O','O','H','O','H','O']``  will return ``'H2O4S'``
-              From E. A. Hill, J. Am. Chem. Soc., 22 (8), pp 478-494 (1900)
+            then use Hill notation, i.e. alphabetical order with C and H
+            first if one or several C atom(s) is (are) present, e.g.
+            ``['C','H','H','H','O','C','H','H','H']`` will return ``'C2H6O'``
+            ``['S','O','O','H','O','H','O']``  will return ``'H2O4S'``
+            From E. A. Hill, J. Am. Chem. Soc., 22 (8), pp 478-494 (1900)
 
             * 'hill_compact': same as hill but the number of atoms for each
-              species is divided by the greatest common divisor of all of them, e.g.
-              ``['C','H','H','H','O','C','H','H','H','O','O','O']``
-              will return ``'CH3O2'``
+            species is divided by the greatest common divisor of all of them, e.g.
+            ``['C','H','H','H','O','C','H','H','H','O','O','O']``
+            will return ``'CH3O2'``
 
             * 'reduce': group repeated symbols e.g.
-              ``['Ba', 'Ti', 'O', 'O', 'O', 'Ba', 'Ti', 'O', 'O', 'O',
-              'Ba', 'Ti', 'Ti', 'O', 'O', 'O']`` will return ``'BaTiO3BaTiO3BaTi2O3'``
+            ``['Ba', 'Ti', 'O', 'O', 'O', 'Ba', 'Ti', 'O', 'O', 'O',
+            'Ba', 'Ti', 'Ti', 'O', 'O', 'O']`` will return ``'BaTiO3BaTiO3BaTi2O3'``
 
             * 'group': will try to group as much as possible parts of the formula
-              e.g.
-              ``['Ba', 'Ti', 'O', 'O', 'O', 'Ba', 'Ti', 'O', 'O', 'O',
-              'Ba', 'Ti', 'Ti', 'O', 'O', 'O']`` will return ``'(BaTiO3)2BaTi2O3'``
+            e.g.
+            ``['Ba', 'Ti', 'O', 'O', 'O', 'Ba', 'Ti', 'O', 'O', 'O',
+            'Ba', 'Ti', 'Ti', 'O', 'O', 'O']`` will return ``'(BaTiO3)2BaTi2O3'``
 
             * 'count': same as hill (i.e. one just counts the number
-              of atoms of each species) without the re-ordering (take the
-              order of the atomic sites), e.g.
-              ``['Ba', 'Ti', 'O', 'O', 'O','Ba', 'Ti', 'O', 'O', 'O']``
-              will return ``'Ba2Ti2O6'``
+            of atoms of each species) without the re-ordering (take the
+            order of the atomic sites), e.g.
+            ``['Ba', 'Ti', 'O', 'O', 'O','Ba', 'Ti', 'O', 'O', 'O']``
+            will return ``'Ba2Ti2O6'``
 
             * 'count_compact': same as count but the number of atoms
-              for each species is divided by the greatest common divisor of
-              all of them, e.g.
-              ``['Ba', 'Ti', 'O', 'O', 'O','Ba', 'Ti', 'O', 'O', 'O']``
-              will return ``'BaTiO3'``
+            for each species is divided by the greatest common divisor of
+            all of them, e.g.
+            ``['Ba', 'Ti', 'O', 'O', 'O','Ba', 'Ti', 'O', 'O', 'O']``
+            will return ``'BaTiO3'``
 
         :param separator: a string used to concatenate symbols. Default empty.
 
@@ -558,7 +544,7 @@ class StructureDataCore:
             f"mode `{mode}` is invalid, choose from `full`, `reduced` or `fractional`."
         )
 
-    def get_kinds(self, kind_tags=[], exclude=[], custom_thr={}):
+    def get_kinds(self, kind_tags=[], exclude=["weight"], custom_thr={}):
         """
         Get the list of kinds, taking into account all the properties.
         If the list of kinds is already provided--> len(kind_tags)>0, we check the consistency of it
@@ -615,7 +601,7 @@ class StructureDataCore:
         default_thresholds = {
             "charge": 0.1,
             "mass": 1e-4,
-            "magnetization": 1e-2,
+            "magmom": 1e-2, # _MAGMOM_THRESHOLD
         }
 
         list_tags = []
@@ -635,20 +621,19 @@ class StructureDataCore:
         kind_properties = []
         kinds_dictionary = {"kinds": {}}
         for single_property in self.get_property_names(domain="site"):
-            if single_property not in ["symbol", "position", "kind_name"] + exclude:
+            if single_property not in ["symbol", "position", "kind_name",] + exclude:
                 # prop = self.get_site_property(single_property)
                 thr = custom_thr.get(
                     single_property, default_thresholds.get(single_property)
                 )
                 kinds_dictionary[single_property] = {}
-                # for this if, refer to the description of the `to_kinds` method of the IntraSiteProperty class.
 
                 kinds_per_property = self._to_kinds(
                     property_name=single_property, symbols=symbols, thr=thr
                 )
                 kind_properties.append(kinds_per_property[0])
                 # I prefer to store again under the key 'value', may be useful in the future
-                kinds_dictionary[single_property] = kinds_per_property[1].tolist()
+                kinds_dictionary[single_property] = kinds_per_property[2]
 
         k = np.array(kind_properties)
         k = k.T
@@ -702,8 +687,8 @@ class StructureDataCore:
         Requires to be able to import ase.
 
         :return: an ASE object corresponding to this
-          :py:class:`StructureData <aiida.orm.nodes.data.structure.StructureData>`
-          object.
+        :py:class:`StructureData <aiida.orm.nodes.data.structure.StructureData>`
+        object.
 
         .. note:: If any site is an alloy or has vacancies, a ValueError
             is raised (from the site.to_ase() routine).
@@ -1323,13 +1308,19 @@ class StructureDataCore:
             kinds_values: list of the associated property value to each kind detected.
         """
         symbols_array = np.array(symbols)
-        prop_array = np.array(self.get_site_property(property_name))
+        
+        if isinstance(self.get_site_property(property_name)[0], list) or isinstance(self.get_site_property(property_name)[0], np.ndarray):
+            prop_array = np.array([np.linalg.norm(row) for row in self.get_site_property(property_name)])
+        else: 
+            prop_array = np.array(self.get_site_property(property_name))
 
-        if thr == 0:
+        
+        if thr == 0 or not thr:
             return np.array(range(len(prop_array))), prop_array
 
         # list for the value of the property for each generated kind.
         kinds_values = np.zeros(len(symbols_array))
+        kinds_raw_values = []
 
         indexes = np.array((prop_array - np.min(prop_array)) / thr, dtype=int)
 
@@ -1340,6 +1331,8 @@ class StructureDataCore:
             kinds_values[where_index_in_indexes] = np.min(
                 prop_array[where_index_in_indexes]
             )
+            for i in where_index_in_indexes:
+                kinds_raw_values.append(self.get_site_property(property_name)[i])
 
         # here we reorder from zero the kinds.
         list_set_indexes = list(set_indexes)
@@ -1347,7 +1340,7 @@ class StructureDataCore:
         for i in range(len(list_set_indexes)):
             kinds_labels[np.where(indexes == list_set_indexes[i])[0]] = i
 
-        return kinds_labels, kinds_values
+        return kinds_labels, kinds_values, kinds_raw_values
 
     def __getitem__(self, index):
         "ENABLE SLICING. Return a sliced StructureDataCore (or subclasses)."
@@ -1371,8 +1364,8 @@ class StructureData(Data, StructureDataCore):
     We should find a way to hide that methods. or better, we can provide a MixinClass to the helper.
     """
 
-    def __init__(self, data: dict):
-        StructureDataCore.__init__(self, data)
+    def __init__(self, **kwargs):
+        StructureDataCore.__init__(self, **kwargs)
         Data.__init__(self)
 
         for prop, value in self._data.items():
@@ -1381,4 +1374,4 @@ class StructureData(Data, StructureDataCore):
     def to_mutable_structuredata(self):
         from .mutable import StructureDataMutable
 
-        return StructureDataMutable(self.to_dict())
+        return StructureDataMutable(**self.to_dict())

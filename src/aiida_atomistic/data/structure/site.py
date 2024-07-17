@@ -79,7 +79,7 @@ class Site:
             if not isinstance(site, Site):
                 raise ValueError("'site' must be of type Site")
             for site_property in self._site_properties:
-                setattr(self, site_property, getattr(site, site_property))
+                setattr(self, "_" + site_property, getattr(site, site_property))
         elif "raw" in kwargs:
             raw = kwargs.pop("raw")
             if kwargs:
@@ -89,9 +89,9 @@ class Site:
             try:
                 for site_property in self._site_properties:
                     if site_property in raw.keys():
-                        setattr(self, site_property, raw[site_property])
+                        setattr(self, "_" + site_property, raw[site_property])
                     else:
-                        setattr(self, site_property, self._get_default(site_property))
+                        setattr(self, "_" + site_property, self._get_default(site_property))
             except KeyError as exc:
                 raise ValueError(
                     f"Invalid raw object, it does not contain any key {exc.args[0]}"
@@ -103,7 +103,7 @@ class Site:
             try:
                 for site_property in self._site_properties:
                     if site_property in kwargs.keys():
-                        setattr(self, site_property, kwargs.pop(site_property))
+                        setattr(self, "_" + site_property, kwargs.pop(site_property))
             except KeyError as exc:
                 raise ValueError(f"You need to specify {exc.args[0]}")
             if kwargs:
@@ -118,13 +118,6 @@ class Site:
         """
         return self._symbol
 
-    @symbol.setter
-    def symbol(self, value: str):
-        """Set the type of this site (a string)."""
-        if value not in _valid_symbols:
-            raise ValueError(f"Wrong symbol, must be a valid one, not {value}.")
-        self._symbol = str(value)
-
     @property
     def mass(self):
         """Return the mass of this site (a float).
@@ -133,20 +126,6 @@ class Site:
         (same mass, symbol, weight, ...) or not.
         """
         return self._mass
-
-    @mass.setter
-    def mass(self, value: float | int):
-        """Set the mass of this site (a float)."""
-        if not isinstance(value, float) and not isinstance(value, int):
-            if value is None:
-                # we fix to the default value.
-                self._mass = _atomic_masses[self.symbol]
-            else:
-                raise ValueError(
-                    f"Wrong format for mass, must be a float or an int, not {type(value)}."
-                )
-        else:
-            self._mass = value
 
     @property
     def kind_name(self):
@@ -157,11 +136,6 @@ class Site:
         """
         return self._kind_name
 
-    @kind_name.setter
-    def kind_name(self, value: str):
-        """Set the type of this site (a string)."""
-        self._kind_name = str(value)
-
     @property
     def position(self):
         """Return the position of this site in absolute coordinates,
@@ -171,55 +145,18 @@ class Site:
         position.flags.writeable = False
         return position
 
-    @position.setter
-    def position(self, value):
-        """Set the position of this site in absolute coordinates,
-        in angstrom.
-        """
-        try:
-            internal_pos = list(float(i) for i in value)
-            if len(internal_pos) != 3:
-                raise ValueError
-        # value is not iterable or elements are not floats or len != 3
-        except (ValueError, TypeError):
-            raise ValueError(
-                "Wrong format for position, must be a list of three float numbers."
-            )
-        self._position = internal_pos
-
     @property
     def charge(self):
         """Return the charge of this site in units of elementary charge."""
         return self._charge
 
-    @charge.setter
-    def charge(self, value: float | int):
-        """Set the charge of this site in units of elementary charge."""
-        if not isinstance(value, float) and not isinstance(value, int):
-            raise ValueError(
-                f"Wrong format for charge, must be a float or an int, not {type(value)}."
-            )
-        self._charge = value
-
     @property
     def magmom(self):
         """Return the magmom of this site in units of Bohr magneton."""
-        return np.array(self._magmom)
-
-    @magmom.setter
-    def magmom(self, value: list):
-        """Set the magmom of this site in units of Bohr magneton."""
-        if not isinstance(value, list):
-            
-            if isinstance(value, (int, float)):
-                value = [value, 0, 0]
-                
-            else:
-                raise ValueError(
-                f"Wrong format for magmom, must be a list not {type(value)}."
-            )
-        self._magmom = value
-
+        magmom = np.array(self._magmom)
+        magmom.flags.writeable = False
+        return magmom
+    
     @property
     def weight(self):
         """weight for this species kind. Refer also to
@@ -227,21 +164,6 @@ class Site:
         """
         return self._weight
 
-    @weight.setter
-    def weight(self, value):
-        """If value is a number, a single weight is used. Otherwise, a list or
-        tuple of numbers is expected.
-        None is also accepted, corresponding to the list [1.].
-        """
-        weight_tuple = _create_weights_tuple(value)
-
-        # if len(weight_tuple) != len(self._symbol):
-        #    raise ValueError(
-        #        'Cannot change the number of weight. Use the ' 'set_symbols_and_weight function instead.'
-        #    )
-        validate_weights_tuple(weight_tuple, _SUM_THRESHOLD)
-
-        self._weight = weight_tuple
 
     @staticmethod
     def atom_to_site(**atom_info):

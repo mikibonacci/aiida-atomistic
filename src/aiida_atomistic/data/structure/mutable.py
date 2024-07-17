@@ -1,5 +1,3 @@
-import typing as t
-
 import numpy as np
 
 from aiida_atomistic.data.structure.site import Site
@@ -16,8 +14,8 @@ class StructureDataMutable(StructureDataCore):
     principle we can also use automatic aiida data type serialization.
     """
 
-    def __init__(self, data={}):
-        super().__init__(data)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def set_pbc(self, value):
         """Set the periodic boundary conditions."""
@@ -92,4 +90,4 @@ class StructureDataMutable(StructureDataCore):
             raise IndexError("pop_atom index out of range")
 
     def to_structuredata(self):
-        return StructureData(self.to_dict())
+        return StructureData(**self.to_dict())

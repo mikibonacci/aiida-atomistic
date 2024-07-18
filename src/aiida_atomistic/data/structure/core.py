@@ -49,26 +49,22 @@ _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
 def get_from_db(attribute):
     @functools.wraps(attribute)
-    def wrapper_property(self):
+    def wrapper_property(self, **kwargs):
         if isinstance(self, StructureData):
             if attribute.__name__ == "sites":
                 return [
-                    Site(mutable=False, raw=i)
+                    Site(raw=i)
                     for i in self.base.attributes.get(attribute.__name__)
                 ]
-            elif attribute.__name__ == "to_dict":
-                return copy.deepcopy(self.base.attributes.all)
             else:
                 prop = np.array(self.base.attributes.get(attribute.__name__))
                 prop.flags.writeable = False
                 return prop
         else:
-            if attribute.__name__ == "to_dict":
-                return copy.deepcopy(self._data)
             # this should be done in the definition, not here.
             if attribute.__name__ == "sites":
                 return [
-                    Site(mutable=True, raw=i)
+                    Site(raw=i)
                     for i in self._data.get(attribute.__name__)
                 ]
             prop = np.array(attribute(self))
@@ -129,7 +125,6 @@ class StructureDataCore:
         self._data["pbc"] = _get_valid_pbc(pbc)
         self._data["cell"] = _get_valid_cell(cell)
         self._data["sites"] = sites  # _get_valid_sites...
-        # validation should happen here.
 
     # primary properties:
 
@@ -141,7 +136,6 @@ class StructureDataCore:
         :return: a tuple of three booleans, each one tells if there are periodic
             boundary conditions for the i-th real-space direction (i=1,2,3)
 
-        TODO: new primaryproperty decorator to be implemented to be the combination of the two and which has the setter method to have the immutability check.
         """
         return self._data["pbc"]
 
@@ -235,7 +229,7 @@ class StructureDataCore:
         data["sites"] = []
         # self.clear_kinds()  # This also calls clear_sites
         for atom in aseatoms:
-            new_site = Site.atom_to_site(ase=atom)
+            new_site = Site.atom_to_site(aseatom=atom)
             data["sites"].append(new_site)
 
         structure = cls(**data)
@@ -391,19 +385,35 @@ class StructureDataCore:
 
         return structure
 
-    @get_from_db
     def to_dict(
-        self,
-    ):
-        return self._data
+            self, 
+            detect_kinds: bool = False
+        ):
+            """
+            Convert the structure to a dictionary representation.
 
-    def get_site_property(self, property):
+            :param detect_kinds: Whether to detect and include the kinds of the structure.
+            :type detect_kinds: bool, optional
+            :return: The structure as a dictionary.
+            :rtype: dict
+            """
+            if isinstance(self, StructureData):
+                dict_repr = copy.deepcopy(self.base.attributes.all)
+            else:
+                dict_repr = copy.deepcopy(self._data)
+                
+            if detect_kinds:
+                dict_repr["sites"] = self.get_kinds(ready_for_use=True)
+            
+            return dict_repr
+    
+    def get_site_property(self, property_name):
         """Return a list with length equal to the number of sites of this structure,
         where each element of the list is the property of the corresponding site.
 
         :return: a list of floats
         """
-        return [getattr(this_site, property) for this_site in self.sites]
+        return [getattr(this_site, property_name) for this_site in self.sites]
 
     def get_property_names(self, domain=None):
         """get a list of properties
@@ -416,6 +426,16 @@ class StructureDataCore:
         elif domain == "site":
             return Site._site_properties
 
+
+    def get_charges(self,):
+        return self.get_site_property("charge")
+    
+    def get_magmoms(self,):
+        return self.get_site_property("magmom")
+    
+    def get_kind_names(self,):
+        return self.get_site_property("kind_name")
+    
     def get_cell_volume(self):
         """Returns the three-dimensional cell volume in Angstrom^3.
 
@@ -544,7 +564,7 @@ class StructureDataCore:
             f"mode `{mode}` is invalid, choose from `full`, `reduced` or `fractional`."
         )
 
-    def get_kinds(self, kind_tags=[], exclude=["weight"], custom_thr={}):
+    def get_kinds(self, kind_tags=[], exclude=["weight"], custom_thr={}, ready_for_use=False):
         """
         Get the list of kinds, taking into account all the properties.
         If the list of kinds is already provided--> len(kind_tags)>0, we check the consistency of it
@@ -619,7 +639,7 @@ class StructureDataCore:
 
         # Step 1:
         kind_properties = []
-        kinds_dictionary = {"kinds": {}}
+        kinds_dictionary = {"kind_name": {}}
         for single_property in self.get_property_names(domain="site"):
             if single_property not in ["symbol", "position", "kind_name",] + exclude:
                 # prop = self.get_site_property(single_property)
@@ -667,12 +687,13 @@ class StructureDataCore:
                 break
 
         # Step 3:
-        kinds_dictionary["kinds"] = [
+        kinds_dictionary["kind_name"] = [
             kind_names[i] if not kind_tags[i] else kind_tags[i]
             for i in range(len(kind_tags))
         ]
         kinds_dictionary["index"] = kind_numeration
-        kinds_dictionary["symbols"] = symbols
+        kinds_dictionary["symbol"] = symbols
+        kinds_dictionary["position"] = self.get_site_property("position")
 
         # Step 4: check on the kind_tags consistency with the properties value.
         if check_kinds and not np.array_equal(check_array, array_tags):
@@ -680,6 +701,16 @@ class StructureDataCore:
                 "The kinds you provided in the `kind_tags` input are not correct, as properties values are not consistent with them. Please check that this is what you want."
             )
 
+        if ready_for_use:
+            new_sites = []
+            for site in range(len(self.sites)):
+                dict_site = {}
+                for k,v in kinds_dictionary.items():
+                    if k != "index": 
+                        dict_site[k] = v[site].tolist() if isinstance(v[site], np.ndarray) else v[site]
+                new_sites.append(dict_site)
+            return new_sites
+            
         return kinds_dictionary
 
     def to_ase(self):
@@ -1332,7 +1363,8 @@ class StructureDataCore:
                 prop_array[where_index_in_indexes]
             )
             for i in where_index_in_indexes:
-                kinds_raw_values.append(self.get_site_property(property_name)[i])
+                value = self.get_site_property(property_name)[i].tolist() if isinstance(self.get_site_property(property_name)[i], np.ndarray) else self.get_site_property(property_name)[i]
+                kinds_raw_values.append(value)
 
         # here we reorder from zero the kinds.
         list_set_indexes = list(set_indexes)
@@ -1357,6 +1389,17 @@ class StructureDataCore:
     ):
         return len(self.sites)
 
+    def get_global_properties(self,):
+        # for then easy query
+        global_prop_dict = {}
+        for prop in self.get_property_names(domain="site"):
+            global_prop_dict[prop+'s'] = self.get_site_property(prop)
+            #setattr(self, prop+'s', property(lambda self: getattr(self, prop)))
+            
+        global_prop_dict['volume'] = self.get_cell_volume()
+        global_prop_dict['dimensionality'] = self._get_dimensionality()['dim']
+        
+        return global_prop_dict
 
 class StructureData(Data, StructureDataCore):
     """
@@ -1370,6 +1413,10 @@ class StructureData(Data, StructureDataCore):
 
         for prop, value in self._data.items():
             self.base.attributes.set(prop, value)
+            
+        global_properties = self.get_global_properties()
+        #for prop, value in global_properties.items():
+        #    self.base.attributes.set(prop, value)
 
     def to_mutable_structuredata(self):
         from .mutable import StructureDataMutable

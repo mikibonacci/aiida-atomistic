@@ -78,6 +78,21 @@ def _get_valid_pbc(inputpbc):
 
     return the_pbc
 
+def _get_valid_sites(input_sites):
+    from .site import Site
+    
+    the_sites = []
+    for site in input_sites:
+        if not isinstance(site, dict):
+            raise ValueError("Each site must be a dictionary")
+        for prop in ['symbol','position']:
+            if prop not in site:
+                raise ValueError(f"Each site must have a {prop}")
+        
+        the_sites.append(Site.atom_to_site(**site))
+    
+    return the_sites
+
 
 def has_ase():
     """:return: True if the ase module can be imported, False otherwise."""

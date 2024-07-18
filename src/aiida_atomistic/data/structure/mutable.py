@@ -16,6 +16,10 @@ class StructureDataMutable(StructureDataCore):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        
+        global_properties = self.get_global_properties()
+        #for prop, value in global_properties.items():
+        #    self._data[prop] = value
 
     def set_pbc(self, value):
         """Set the periodic boundary conditions."""
@@ -45,11 +49,20 @@ class StructureDataMutable(StructureDataCore):
         else:
             for site_index in range(len(value)):
                 self.update_site(site_index, charge=value[site_index])
+                
+    def set_magmoms(self, value):
+        if not len(self._data["sites"]) == len(value):
+            raise ValueError(
+                "The number of magmom must be equal to the number of sites"
+            )
+        else:
+            for site_index in range(len(value)):
+                self.update_site(site_index, magmom=value[site_index])
 
     def set_kind_names(self, value):
         if not len(self._data["sites"]) == len(value):
             raise ValueError(
-                "The number of charges must be equal to the number of sites"
+                "The number of magmom must be equal to the number of sites"
             )
         else:
             for site_index in range(len(value)):

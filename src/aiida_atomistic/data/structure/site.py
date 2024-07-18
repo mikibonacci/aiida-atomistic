@@ -1,4 +1,5 @@
 import numpy as np
+import typing as t 
 
 try:
     import ase  # noqa: F401
@@ -54,7 +55,7 @@ class Site:
     It can be a single atom, or an alloy, or even contain vacancies.
     """
 
-    def __init__(self, mutable=True, **kwargs):
+    def __init__(self, **kwargs):
         """Create a site.
 
         :param kind_name: a string that identifies the kind (species) of this site.
@@ -65,7 +66,6 @@ class Site:
 
         TBD: sites should be always immutable? so we just can use set_* in StructureDataMutable.
         """
-        self._mutable = mutable
 
         for site_property in self._site_properties:
             setattr(self, "_" + site_property, None)
@@ -166,22 +166,28 @@ class Site:
 
 
     @staticmethod
-    def atom_to_site(**atom_info):
+    def atom_to_site(
+        aseatom: t.Optional[ase.Atom] = None,
+        position: t.Optional[list] = None,
+        symbol: t.Optional[t.Union[_valid_symbols]] = None,
+        kind_name: t.Optional[str] = None,
+        charge: t.Optional[float] = None,
+        magmom: t.Optional[list] = None,
+        mass: t.Optional[float] = None,
+        ) -> dict: 
         """Convert an ASE atom or dictionary to a dictionary object which the correct format to describe a Site."""
 
-        aseatom = atom_info.pop("ase", None)
         if aseatom is not None:
-            if atom_info:
+            if position:
                 raise ValueError(
-                    "If you pass 'ase' as a parameter to "
+                    "If you pass 'aseatom' as a parameter to "
                     "append_atom, you cannot pass any further"
                     "parameter"
                 )
             position = aseatom.position.tolist()
             symbol = aseatom.symbol
-            kind = symbol + str(aseatom.tag).replace("0", "")
+            kind_name = symbol + str(aseatom.tag).replace("0", "")
             charge = aseatom.charge
-
             if aseatom.magmom is None:
                 magmom = [0, 0, 0]
             elif isinstance(aseatom.magmom, (int, float)):
@@ -190,25 +196,25 @@ class Site:
                 magmom = aseatom.magmom
             mass = aseatom.mass
         else:
-            position = atom_info.pop("position", None)
             if position is None:
                 raise ValueError("You have to specify the position of the new atom")
-            # all remaining parameters
-            symbol = atom_info.pop("symbol", None)
-            if symbol is None:
+            
+            if symbol is None:  
                 raise ValueError("You have to specify the symbol of the new atom")
-            kind = atom_info.pop("kind", symbol)
-            charge = atom_info.pop("charge", 0)
-            magmom = atom_info.pop("magmom", [0, 0, 0])
-            mass = atom_info.pop("mass", _atomic_masses[symbol])
+            
+            # all remaining parameters
+            kind_name = symbol if kind_name is None else kind_name
+            charge = 0 if charge is None else charge
+            magmom = [0,0,0] if magmom is None else magmom
+            mass = _atomic_masses[symbol] if mass is None else mass
 
         new_site = dict(
             symbol=symbol,
-            kind_name=kind,
-            position=position,
+            kind_name=kind_name,
+            position=position.tolist() if isinstance(position, np.ndarray) else position,
             mass=mass,
             charge=charge,
-            magmom=magmom,
+            magmom=magmom.tolist() if isinstance(magmom, np.ndarray) else magmom
         )
 
         return new_site

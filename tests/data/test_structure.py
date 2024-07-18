@@ -127,7 +127,6 @@ def test_to_be_factorized():
     with pytest.raises(ValueError):
         m.set_pbc([False, "True", False])  
     
-
     m.set_pbc([False, False, False])
     assert not any(m.pbc)
 
@@ -144,10 +143,12 @@ def test_to_be_factorized():
             "kind_name": "Cu",
             "position": [1.0, 0.0, -1.0],
             "charge": 0.0,
-            "magmom": 0.0,
+            "magmom": [0,0,0],
         },
         index=0,
     )
+    
+    assert np.array_equal(m.get_charges(), np.array([0,0]))
 
 
 ## Test the get_kinds() method.

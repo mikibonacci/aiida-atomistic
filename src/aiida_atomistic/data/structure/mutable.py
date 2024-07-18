@@ -116,6 +116,8 @@ class StructureDataMutable(StructureDataCore):
         else:
             raise IndexError("pop_atom index out of range")
 
+    def clear_sites(self,):
+        self._data["sites"] = []
+    
     def to_structuredata(self):
-        
         return StructureData(**self.to_dict())

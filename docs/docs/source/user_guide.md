@@ -24,6 +24,7 @@ structure_dict = {
         {
             'symbol':'Si',
             'position':[3/4, 3/4, 3/4],
+            'charge': 0,
         },
         {
             'symbol':'Si',
@@ -211,12 +212,18 @@ mutable_structure.add_atom({
 
 ## Slicing a structure
 
-It is possible to *slice* a structure, i.e. returning only a part of it (in terms of sites). Let's that you have an heterostructure and you want to obtain only the first layer, composed of the first 4 atoms over 10 total. This works for both `StructureDataMutable` and `StructureData` (we return a new `StructureData` instance).
+It is possible to *slice* a structure, i.e. returning only a part of it (in terms of sites). Let's suppose that you have an heterostructure and you want to obtain only the first layer, composed of the first 4 atoms over 10 total. This works for both `StructureDataMutable` and `StructureData` (we return a new `StructureData` instance).
 
 ```python=
 sliced_structure = structure[:4]
 ```
 
+## Querying a StructureData from the database
+
+It is possible to query the 
+
+
 ## Backward compatibility support
 
 We can use the `to_legacy` method to return the corresponding `orm.StructureData` instance, in case a given plugin does not yet support the new `StructureData`.
+

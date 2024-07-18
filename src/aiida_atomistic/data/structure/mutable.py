@@ -1,3 +1,4 @@
+import typing as t 
 import numpy as np
 
 from aiida_atomistic.data.structure.site import Site
@@ -12,15 +13,25 @@ class StructureDataMutable(StructureDataCore):
     contains mutation methods.
     It has the same data structure of the StructureData, so in
     principle we can also use automatic aiida data type serialization.
+
+    :param pbc: A list of three boolean values indicating the periodic boundary conditions (PBC)
+                for each spatial dimension. If not provided, defaults to (True, True, True).
+    :param cell: A 3x3 matrix (list of lists) representing the lattice vectors of the cell.
+                 If not provided, a default cell matrix (_DEFAULT_CELL) will be used.
+    :param sites: A list of Site objects representing the atomic positions and species within the structure.
+                  If not provided, an empty list will be used.
     """
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        
+    def __init__(self,
+                 pbc: t.Optional[list[bool]] = None,
+                 cell: t.Optional[list[list[float]]] = None,
+                 sites: t.Optional[list[Site]] = None):
+        super().__init__(pbc, cell, sites)
+
         global_properties = self.get_global_properties()
         #for prop, value in global_properties.items():
         #    self._data[prop] = value
-
+        
     def set_pbc(self, value):
         """Set the periodic boundary conditions."""
         the_pbc = _get_valid_pbc(value)
@@ -62,7 +73,7 @@ class StructureDataMutable(StructureDataCore):
     def set_kind_names(self, value):
         if not len(self._data["sites"]) == len(value):
             raise ValueError(
-                "The number of magmom must be equal to the number of sites"
+                "The number of kind_names must be equal to the number of sites"
             )
         else:
             for site_index in range(len(value)):

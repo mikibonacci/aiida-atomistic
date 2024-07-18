@@ -16,15 +16,23 @@ try:
     from ase import io as ase_io
 
     has_ase = True
+    ASE_ATOMS_TYPE = ase.Atoms
 except ImportError:
     has_ase = False
+
+    ASE_ATOMS_TYPE = t.Any
 
 try:
     import pymatgen.core as core  # noqa: F401
 
     has_pymatgen = True
+    PYMATGEN_MOLECULE = core.structure.Molecule
+    PYMATGEN_STRUCTURE = core.structure.Structure
 except ImportError:
     has_pymatgen = False
+
+    PYMATGEN_MOLECULE = t.Any
+    PYMATGEN_STRUCTURE = t.Any
 
 
 from aiida_atomistic.data.structure.utils import (
@@ -81,6 +89,13 @@ class StructureDataCore:
     Also, the validation methods should be here.
 
     we can also remove all the setter methods and just provide set_* in mutable.
+
+    :param pbc: A list of three boolean values indicating the periodic boundary conditions (PBC)
+                for each spatial dimension. If not provided, defaults to (True, True, True).
+    :param cell: A 3x3 matrix (list of lists) representing the lattice vectors of the cell.
+                If not provided, a default cell matrix (_DEFAULT_CELL) will be used.
+    :param sites: A list of Site objects representing the atomic positions and species within the structure.
+                If not provided, an empty list will be used.
     """
 
     _dimensionality_label = {0: "", 1: "length", 2: "surface", 3: "volume"}
@@ -90,41 +105,16 @@ class StructureDataCore:
         "pbc",
     ]
 
-    def __init__(
-        self, 
-        pbc: tuple[bool] = (True, True, True),
-        cell: t.List[t.List[float]] = _DEFAULT_CELL,
-        sites: t.List[dict | Site] = [],
-    ):
-        """
-        Initialize a Structure object.
-
-        Args:
-            pbc (tuple[bool], optional): A tuple of three booleans indicating whether periodic boundary conditions
-                are applied along each direction. Defaults to (True, True, True).
-            cell (List[List[float]], optional): The unit cell of the structure represented as a 3x3 matrix.
-                Defaults to _DEFAULT_CELL.
-            sites (List[dict | Site], optional): A list of site dictionaries or Site objects representing the atomic
-                sites in the structure. Defaults to an empty list.
-
-        Notes:
-        - The `pbc` argument determines whether the structure is considered to have periodic boundary conditions
-            along each direction. If `pbc` is set to False along a particular direction, that direction is considered
-            to have open boundary conditions.
-        - The `cell` argument represents the unit cell of the structure. It should be a 3x3 matrix where each row
-            corresponds to a lattice vector.
-        - The `sites` argument represents the atomic sites in the structure. Each site can be specified as a dictionary
-            or as a `Site` object. The dictionary should contain the keys 'kind_name', 'position', and 'weights'.
-            The 'kind_name' key should correspond to the name of the atomic kind associated with the site.
-            The 'position' key should contain the Cartesian coordinates of the site.
-            The 'weights' key should contain the weights associated with the site, which are used in calculations
-            involving multiple sites of the same kind.
-        """
-        
+    def __init__(self,
+                pbc: t.Optional[list[bool]] = None,
+                cell: t.Optional[list[list[float]]] = None,
+                sites: t.Optional[list[Site]] = None):
         self._data = {}
-        self._data["pbc"] = _get_valid_pbc(pbc)
-        self._data["cell"] = _get_valid_cell(cell)
-        self._data["sites"] = sites  # _get_valid_sites...
+        
+        self._data["pbc"] = (True, True, True) if pbc is None else _get_valid_pbc(pbc)
+        self._data["cell"] = _DEFAULT_CELL if cell is None else _get_valid_cell(cell)
+        self._data["sites"] = [] if sites is None else sites   # _get_valid_sites...
+        # validation should happen here.
 
     # primary properties:
 
@@ -191,7 +181,6 @@ class StructureDataCore:
             ]
         ]
 
-
     @property
     def is_alloy(self):
         """Return whether the structure contains any alloy kinds.
@@ -212,10 +201,10 @@ class StructureDataCore:
 
     @classmethod
     def from_dict(cls, structure_dict: dict):
-        return cls(structure_dict)
+        return cls(**structure_dict)
 
     @classmethod
-    def from_ase(cls, aseatoms: ase.Atoms):
+    def from_ase(cls, aseatoms: ASE_ATOMS_TYPE):
         """Load the structure from a ASE object"""
 
         if not has_ase:
@@ -247,7 +236,7 @@ class StructureDataCore:
     @classmethod
     def from_pymatgen(
         cls,
-        pymatgen_obj: t.Union[core.structure.Molecule, core.structure.Structure],
+        pymatgen_obj: t.Union[PYMATGEN_MOLECULE, PYMATGEN_STRUCTURE],
         **kwargs,
     ):
         """Load the structure from a pymatgen object.
@@ -258,7 +247,7 @@ class StructureDataCore:
         if not has_pymatgen:
             raise ImportError("The pymatgen package cannot be imported.")
 
-        if isinstance(pymatgen_obj, core.structure.Molecule):
+        if isinstance(pymatgen_obj, PYMATGEN_MOLECULE):
             structure = cls._from_pymatgen_molecule(pymatgen_obj)
         else:
             structure = cls._from_pymatgen_structure(pymatgen_obj)
@@ -266,7 +255,7 @@ class StructureDataCore:
         return structure
 
     @classmethod
-    def _from_pymatgen_molecule(cls, mol: core.structure.Molecule, margin=5):
+    def _from_pymatgen_molecule(cls, mol: PYMATGEN_MOLECULE, margin=5):
         """Load the structure from a pymatgen Molecule object.
 
         :param margin: the margin to be added in all directions of the
@@ -292,7 +281,7 @@ class StructureDataCore:
         return structure
 
     @classmethod
-    def _from_pymatgen_structure(cls, struct: core.structure.Structure):
+    def _from_pymatgen_structure(cls, struct: PYMATGEN_STRUCTURE):
         """Load the structure from a pymatgen Structure object.
 
         .. note:: periodic boundary conditions are set to True in all
@@ -1405,10 +1394,20 @@ class StructureData(Data, StructureDataCore):
     """
     The idea is that this class has the same as StructureDataMutable, but does not allow methods to change it.
     We should find a way to hide that methods. or better, we can provide a MixinClass to the helper.
+
+    :param pbc: A list of three boolean values indicating the periodic boundary conditions (PBC)
+                for each spatial dimension. If not provided, defaults to (True, True, True).
+    :param cell: A 3x3 matrix (list of lists) representing the lattice vectors of the cell.
+                If not provided, a default cell matrix (_DEFAULT_CELL) will be used.
+    :param sites: A list of Site objects representing the atomic positions and species within the structure.
+                If not provided, an empty list will be used.
     """
 
-    def __init__(self, **kwargs):
-        StructureDataCore.__init__(self, **kwargs)
+    def __init__(self,
+                pbc: t.Optional[list[bool]] = None,
+                cell: t.Optional[list[list[float]]] = None,
+                sites: t.Optional[list[Site]] = None):
+        StructureDataCore.__init__(self, pbc, cell, sites)
         Data.__init__(self)
 
         for prop, value in self._data.items():

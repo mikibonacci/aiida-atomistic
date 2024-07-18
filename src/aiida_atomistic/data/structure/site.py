@@ -1,4 +1,5 @@
 import numpy as np
+import typing as t 
 
 try:
     import ase  # noqa: F401
@@ -16,7 +17,10 @@ from aiida_atomistic.data.structure.utils import (
     _create_weights_tuple,
     create_automatic_kind_name,
     validate_weights_tuple,
+    ObservedArray,
 )
+
+
 
 _MASS_THRESHOLD = 1.0e-3
 # Threshold to check if the sum is one or not
@@ -36,7 +40,6 @@ _default_values = {
     "weight": 1,
 }
 
-
 class Site:
 
     _site_properties = [
@@ -54,7 +57,8 @@ class Site:
     It can be a single atom, or an alloy, or even contain vacancies.
     """
 
-    def __init__(self, mutable=True, **kwargs):
+    def __init__(self, parent=None, index=None, **kwargs):
+                
         """Create a site.
 
         :param kind_name: a string that identifies the kind (species) of this site.
@@ -65,8 +69,10 @@ class Site:
 
         TBD: sites should be always immutable? so we just can use set_* in StructureDataMutable.
         """
-        self._mutable = mutable
-
+        
+        self._parent = parent
+        self._index = index
+        
         for site_property in self._site_properties:
             setattr(self, "_" + site_property, None)
 
@@ -79,7 +85,7 @@ class Site:
             if not isinstance(site, Site):
                 raise ValueError("'site' must be of type Site")
             for site_property in self._site_properties:
-                setattr(self, site_property, getattr(site, site_property))
+                setattr(self, "_" + site_property, getattr(site, site_property))
         elif "raw" in kwargs:
             raw = kwargs.pop("raw")
             if kwargs:
@@ -89,9 +95,9 @@ class Site:
             try:
                 for site_property in self._site_properties:
                     if site_property in raw.keys():
-                        setattr(self, site_property, raw[site_property])
+                        setattr(self, "_" + site_property, raw[site_property])
                     else:
-                        setattr(self, site_property, self._get_default(site_property))
+                        setattr(self, "_" + site_property, self._get_default(site_property))
             except KeyError as exc:
                 raise ValueError(
                     f"Invalid raw object, it does not contain any key {exc.args[0]}"
@@ -103,7 +109,7 @@ class Site:
             try:
                 for site_property in self._site_properties:
                     if site_property in kwargs.keys():
-                        setattr(self, site_property, kwargs.pop(site_property))
+                        setattr(self, "_" + site_property, kwargs.pop(site_property))
             except KeyError as exc:
                 raise ValueError(f"You need to specify {exc.args[0]}")
             if kwargs:
@@ -118,13 +124,6 @@ class Site:
         """
         return self._symbol
 
-    @symbol.setter
-    def symbol(self, value: str):
-        """Set the type of this site (a string)."""
-        if value not in _valid_symbols:
-            raise ValueError(f"Wrong symbol, must be a valid one, not {value}.")
-        self._symbol = str(value)
-
     @property
     def mass(self):
         """Return the mass of this site (a float).
@@ -133,20 +132,6 @@ class Site:
         (same mass, symbol, weight, ...) or not.
         """
         return self._mass
-
-    @mass.setter
-    def mass(self, value: float | int):
-        """Set the mass of this site (a float)."""
-        if not isinstance(value, float) and not isinstance(value, int):
-            if value is None:
-                # we fix to the default value.
-                self._mass = _atomic_masses[self.symbol]
-            else:
-                raise ValueError(
-                    f"Wrong format for mass, must be a float or an int, not {type(value)}."
-                )
-        else:
-            self._mass = value
 
     @property
     def kind_name(self):
@@ -157,69 +142,47 @@ class Site:
         """
         return self._kind_name
 
-    @kind_name.setter
-    def kind_name(self, value: str):
-        """Set the type of this site (a string)."""
-        self._kind_name = str(value)
-
     @property
     def position(self):
         """Return the position of this site in absolute coordinates,
         in angstrom.
         """
-        position = np.array(self._position)
-        position.flags.writeable = False
+        position = ObservedArray(self._position)
+        position.flags.writeable = self._parent._mutable
         return position
 
     @position.setter
     def position(self, value):
-        """Set the position of this site in absolute coordinates,
-        in angstrom.
-        """
-        try:
-            internal_pos = list(float(i) for i in value)
-            if len(internal_pos) != 3:
-                raise ValueError
-        # value is not iterable or elements are not floats or len != 3
-        except (ValueError, TypeError):
-            raise ValueError(
-                "Wrong format for position, must be a list of three float numbers."
-            )
-        self._position = internal_pos
-
+        """Setter for the position of the site."""
+        if not self._parent._mutable:
+            raise ValueError("The site is not mutable")
+        
+        value = value.tolist() if isinstance(value, np.ndarray) else value
+        self._position = value # we need to update also the parent
+        self._parent.update_site(self._index, position=value)
+    
     @property
     def charge(self):
         """Return the charge of this site in units of elementary charge."""
         return self._charge
 
-    @charge.setter
-    def charge(self, value: float | int):
-        """Set the charge of this site in units of elementary charge."""
-        if not isinstance(value, float) and not isinstance(value, int):
-            raise ValueError(
-                f"Wrong format for charge, must be a float or an int, not {type(value)}."
-            )
-        self._charge = value
-
     @property
     def magmom(self):
         """Return the magmom of this site in units of Bohr magneton."""
-        return np.array(self._magmom)
-
+        magmom = ObservedArray(self._magmom)
+        magmom.flags.writeable = False
+        return magmom
+    
     @magmom.setter
-    def magmom(self, value: list):
-        """Set the magmom of this site in units of Bohr magneton."""
-        if not isinstance(value, list):
-            
-            if isinstance(value, (int, float)):
-                value = [value, 0, 0]
-                
-            else:
-                raise ValueError(
-                f"Wrong format for magmom, must be a list not {type(value)}."
-            )
-        self._magmom = value
-
+    def magmom(self, value):
+        """Setter for the magmom of the site."""
+        if not self._parent._mutable:
+            raise ValueError("The magmom is not mutable")
+        
+        value = value.tolist() if isinstance(value, np.ndarray) else value
+        self._magmom = value # we need to update also the parent
+        self._parent.update_site(self._index, magmom=value)
+    
     @property
     def weight(self):
         """weight for this species kind. Refer also to
@@ -227,39 +190,30 @@ class Site:
         """
         return self._weight
 
-    @weight.setter
-    def weight(self, value):
-        """If value is a number, a single weight is used. Otherwise, a list or
-        tuple of numbers is expected.
-        None is also accepted, corresponding to the list [1.].
-        """
-        weight_tuple = _create_weights_tuple(value)
-
-        # if len(weight_tuple) != len(self._symbol):
-        #    raise ValueError(
-        #        'Cannot change the number of weight. Use the ' 'set_symbols_and_weight function instead.'
-        #    )
-        validate_weights_tuple(weight_tuple, _SUM_THRESHOLD)
-
-        self._weight = weight_tuple
 
     @staticmethod
-    def atom_to_site(**atom_info):
+    def atom_to_site(
+        aseatom: t.Optional[ase.Atom] = None,
+        position: t.Optional[list] = None,
+        symbol: t.Optional[t.Union[_valid_symbols]] = None,
+        kind_name: t.Optional[str] = None,
+        charge: t.Optional[float] = None,
+        magmom: t.Optional[list] = None,
+        mass: t.Optional[float] = None,
+        ) -> dict: 
         """Convert an ASE atom or dictionary to a dictionary object which the correct format to describe a Site."""
 
-        aseatom = atom_info.pop("ase", None)
         if aseatom is not None:
-            if atom_info:
+            if position:
                 raise ValueError(
-                    "If you pass 'ase' as a parameter to "
+                    "If you pass 'aseatom' as a parameter to "
                     "append_atom, you cannot pass any further"
                     "parameter"
                 )
             position = aseatom.position.tolist()
             symbol = aseatom.symbol
-            kind = symbol + str(aseatom.tag).replace("0", "")
+            kind_name = symbol + str(aseatom.tag)
             charge = aseatom.charge
-
             if aseatom.magmom is None:
                 magmom = [0, 0, 0]
             elif isinstance(aseatom.magmom, (int, float)):
@@ -268,25 +222,25 @@ class Site:
                 magmom = aseatom.magmom
             mass = aseatom.mass
         else:
-            position = atom_info.pop("position", None)
             if position is None:
                 raise ValueError("You have to specify the position of the new atom")
-            # all remaining parameters
-            symbol = atom_info.pop("symbol", None)
-            if symbol is None:
+            
+            if symbol is None:  
                 raise ValueError("You have to specify the symbol of the new atom")
-            kind = atom_info.pop("kind", symbol)
-            charge = atom_info.pop("charge", 0)
-            magmom = atom_info.pop("magmom", [0, 0, 0])
-            mass = atom_info.pop("mass", _atomic_masses[symbol])
+            
+            # all remaining parameters
+            kind_name = symbol if kind_name is None else kind_name
+            charge = 0 if charge is None else charge
+            magmom = [0,0,0] if magmom is None else magmom
+            mass = _atomic_masses[symbol] if mass is None else mass
 
         new_site = dict(
             symbol=symbol,
-            kind_name=kind,
-            position=position,
+            kind_name=kind_name,
+            position=position.tolist() if isinstance(position, np.ndarray) else position,
             mass=mass,
             charge=charge,
-            magmom=magmom,
+            magmom=magmom.tolist() if isinstance(magmom, np.ndarray) else magmom
         )
 
         return new_site

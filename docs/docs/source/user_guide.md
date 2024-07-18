@@ -24,6 +24,7 @@ structure_dict = {
         {
             'symbol':'Si',
             'position':[3/4, 3/4, 3/4],
+            'charge': 0,
         },
         {
             'symbol':'Si',
@@ -32,8 +33,8 @@ structure_dict = {
     ],
 }
 
-mutable_structure = StructureDataMutable(data=structure_dict)
-structure = StructureData(data=structure_dict)
+mutable_structure = StructureDataMutable(**structure_dict)
+structure = StructureData(**structure_dict)
 ```
 
 When this dictionary is provided to the constructor, validation check for each of the provided property is done (**for now, only pbc and cell**).
@@ -74,7 +75,7 @@ print(structure.sites[0].symbol,structure.sites[0].position) # output: Si [0.75 
 All the properties can be accessed via tab completion, and a list of the supported properties can be accessed via `structure.get_property_names()`.
 
 For now, other supported properties are `charge` (not yet `tot_charge`), `kind_name`, `mass`.
-For example, we can initialize a charged structure in this way:
+We can initialize a charged structure in this way:
 
 
 ```python=
@@ -96,11 +97,13 @@ structure_dict = {
     ],
 }
 
-mutable_structure = StructureDataMutable(data=structure_dict)
-structure = StructureData(data=structure_dict)
+mutable_structure = StructureDataMutable(**structure_dict)
+structure = StructureData(**structure_dict)
 ```
 
 then, `structure.sites[0].charge` will be equal to 1. When the plugins will be adapted, with this information we can build the correct input file for the corresponding quantum engine.
+
+To access the properties summarized for all the sites, you can use methods like `get_charges`, `get_magmoms`, `get_kind_names`. You can also use the more general `get_site_property` method (in this case, you should provide the name of the property as input: 'charge', 'magmom', 'kind_name').
 
 ### Initialization from ASE or Pymatgen
 
@@ -115,7 +118,7 @@ atoms.set_tags(["2"])
 mutable_structure = StructureDataMutable.from_ase(atoms)
 structure = StructureData.from_ase(atoms)
 
-structure.to_dict()
+structure.to_dict(detect_kinds=False)
 ```
 
 This should have as output:
@@ -130,6 +133,8 @@ This should have as output:
    'charge': 1.0,
    'magmom': 0.0}]}
 ```
+
+The `detect_kinds`parameter, if `True`, provides automatically detected kind_names (and corresponding properties). For more control on the automatic kinds generation, see the corresponding section below.
 
 This support also the properties like charges (coming soon: magmoms and so on). In the same way, for pymatgen we can proceed as follows:
 
@@ -169,7 +174,7 @@ the output being:
 
 Moreover, we also provide `to_ase` and `to_pymatgen` methods to obtain the corresponding instances. Also this methods for now only support charges, among the new properties.
 
-## Mutation of a structure
+## Mutation of a `StructureDataMutable` instance
 
 Let's suppose you want to update some property in the `StructureData` before to use it in a calculation. You cannot. The way to go is either to use ASE or Pymatgen to modify you object and store it back into `StructureData`, or to use the `StructureDataMutable` and its mutation methods, and then convert it into `StructureData`.
 The latter method is the preferred one, as you then have support also for additional properties (to be implemented) like hubbard, which is not supported by the former.
@@ -208,15 +213,84 @@ mutable_structure.add_atom({
         })
 ```
 
+It is also possible to directly access the single properties and modify them, but we strongly suggest to use the dedicated `set_*`methods or the `add_atom`, `pop_atom`, `update_site`. `pbc` and `cell` can be modified only via the corresponding `set_pbc` and `set_cell` methods.
 
 ## Slicing a structure
 
-It is possible to *slice* a structure, i.e. returning only a part of it (in terms of sites). Let's that you have an heterostructure and you want to obtain only the first layer, composed of the first 4 atoms over 10 total. This works for both `StructureDataMutable` and `StructureData` (we return a new `StructureData` instance).
+It is possible to *slice* a structure, i.e. returning only a part of it (in terms of sites). Let's suppose that you have an heterostructure and you want to obtain only the first layer, composed of the first 4 atoms over 10 total. This works for both `StructureDataMutable` and `StructureData` (we return a new `StructureData` instance).
 
 ```python=
 sliced_structure = structure[:4]
 ```
 
+## Passing from StructureData to StructureDataMutable and viceversa
+
+```python=
+mutable_structure.to_structuredata() # returns an instance of StructureData
+structure.to_mutable_structuredata() # returns an instance of StructureDataMutable
+```
+
+## Automatic kinds generation
+
+It is possible to generate the kind_names and the corresponding mapped properties for a given structure. 
+You can do it by using the `get_kinds` method.
+
+```python=
+Fe_BCC_dictionary = {'pbc': (True, True, True),
+        'cell': [[2.8403, 0.0, 1.7391821518091137e-16],
+        [-1.7391821518091137e-16, 2.8403, 1.7391821518091137e-16],
+        [0.0, 0.0, 2.8403]],
+        'sites': [{'symbol': 'Fe',
+        'weights': 55.845,
+        'position': [0.0, 0.0, 0.0],
+        'charge': 0.0,
+        'magmom': [2.5, 0.1, 0.1],
+        'kind_name': 'Fe'},
+        {'symbol': 'Fe',
+        'weights': 55.845,
+        'position': [1.42015, 1.42015, 1.4201500000000002],
+        'charge': 0.0,
+        'magmom': [2.4, 0.1, 0.1],
+        'kind_name': 'Fe'}]}
+
+mutable_structure = StructureDataMutable(**Fe_BCC_dictionary)
+new_sites = mutable_structure.get_kinds(ready_to_use=True)
+```
+
+By setting `ready_to_use`to True, we provide a list of sites ready to be used in our structure.
+We then obtain:
+
+```shell=
+[{'kind_name': 'Fe0',
+  'mass': 55.845,
+  'charge': 0.0,
+  'magmom': [2.5, 0.1, 0.1],
+  'symbol': 'Fe',
+  'position': [0.0, 0.0, 0.0]},
+ {'kind_name': 'Fe1',
+  'mass': 55.845,
+  'charge': 0.0,
+  'magmom': [2.4, 0.1, 0.1],
+  'symbol': 'Fe',
+  'position': [1.42015, 1.42015, 1.4201500000000002]}]
+```
+
+so we can set the new sites:
+
+```python=
+mutable_structure.clear_sites()
+new_sites = mutable_structure.get_kinds(ready_to_use=True)
+for site in new_sites:
+    mutable_structure.add_atom(site)
+```
+
+
+It is possible to provide custom thresholds, exclude properties from this detection and also to provide already some kinds (kind_tags) to be blocked. *Explanation TOBE extended.*
+
 ## Backward compatibility support
 
 We can use the `to_legacy` method to return the corresponding `orm.StructureData` instance, in case a given plugin does not yet support the new `StructureData`.
+
+## How to Query StructureData using properties
+
+TOBE added.

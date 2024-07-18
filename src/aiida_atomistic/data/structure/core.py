@@ -42,6 +42,7 @@ from aiida_atomistic.data.structure.utils import (
     calc_cell_volume,
     create_automatic_kind_name,
     get_formula,
+    ObservedArray,
 )
 
 _MASS_THRESHOLD = 1.0e-3
@@ -55,50 +56,30 @@ _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
 
-def immutability_cloak(attribute):
-    @functools.wraps(attribute)
-    def wrapper_immutability_cloak(self, value):
-        if isinstance(self, StructureData):
-            from aiida.common.exceptions import ModificationNotAllowed
-
-            raise ModificationNotAllowed(
-                "The StructureData object cannot be modified, it is immutable.\n \
-                If you want to modify a structure object, use StructureDataMutable object and then\n \
-                transform it into StructureData node via the `to_structuredata` method."
-            )
-        else:
-            raise NotImplementedError(
-                "Direct modification is not implemented. \n \
-                To change the property, please use the corresponding `set_<property>` method of the StructureDataMutable class."
-            )
-
-    return wrapper_immutability_cloak
-
-
 def get_from_db(attribute):
     @functools.wraps(attribute)
-    def wrapper_property(self):
+    def wrapper_property(self, **kwargs):
         if isinstance(self, StructureData):
             if attribute.__name__ == "sites":
-                return [
-                    Site(mutable=False, raw=i)
-                    for i in self.base.attributes.get(attribute.__name__)
-                ]
-            elif attribute.__name__ == "to_dict":
-                return copy.deepcopy(self.base.attributes.all)
+                sites =  np.array([
+                    Site(raw=i, parent=self, index=j)
+                    for i,j in zip(self.base.attributes.get(attribute.__name__), range(len(self.base.attributes.get(attribute.__name__))))  
+                ])
+                sites.flags.writeable = False
+                return sites
             else:
                 prop = np.array(self.base.attributes.get(attribute.__name__))
                 prop.flags.writeable = False
                 return prop
         else:
-            if attribute.__name__ == "to_dict":
-                return copy.deepcopy(self._data)
             # this should be done in the definition, not here.
             if attribute.__name__ == "sites":
-                return [
-                    Site(mutable=True, raw=i)
-                    for i in self._data.get(attribute.__name__)
-                ]
+                sites =  np.array([
+                    Site(raw=i, parent=self, index=j)
+                    for i,j in zip(self._data.get(attribute.__name__), range(len(self._data.get(attribute.__name__)))) 
+                ])
+                sites.flags.writeable = False
+                return sites
             prop = np.array(attribute(self))
             prop.flags.writeable = False
             return prop
@@ -117,9 +98,9 @@ class StructureDataCore:
     :param pbc: A list of three boolean values indicating the periodic boundary conditions (PBC)
                 for each spatial dimension. If not provided, defaults to (True, True, True).
     :param cell: A 3x3 matrix (list of lists) representing the lattice vectors of the cell.
-                 If not provided, a default cell matrix (_DEFAULT_CELL) will be used.
+                If not provided, a default cell matrix (_DEFAULT_CELL) will be used.
     :param sites: A list of Site objects representing the atomic positions and species within the structure.
-                  If not provided, an empty list will be used.
+                If not provided, an empty list will be used.
     """
 
     _dimensionality_label = {0: "", 1: "length", 2: "surface", 3: "volume"}
@@ -130,16 +111,16 @@ class StructureDataCore:
     ]
 
     def __init__(self,
-                 pbc: t.Optional[list[bool]] = None,
-                 cell: t.Optional[list[list[float]]] = None,
-                 sites: t.Optional[list[Site]] = None):
+                pbc: t.Optional[list[bool]] = None,
+                cell: t.Optional[list[list[float]]] = None,
+                sites: t.Optional[list[Site]] = None,
+                mutable=True):
         self._data = {}
         
         self._data["pbc"] = (True, True, True) if pbc is None else _get_valid_pbc(pbc)
         self._data["cell"] = _DEFAULT_CELL if cell is None else _get_valid_cell(cell)
         self._data["sites"] = [] if sites is None else sites   # _get_valid_sites...
         # validation should happen here.
-
     # primary properties:
 
     @property
@@ -150,15 +131,8 @@ class StructureDataCore:
         :return: a tuple of three booleans, each one tells if there are periodic
             boundary conditions for the i-th real-space direction (i=1,2,3)
 
-        TODO: new primaryproperty decorator to be implemented to be the combination of the two and which has the setter method to have the immutability check.
         """
         return self._data["pbc"]
-
-    @pbc.setter
-    @immutability_cloak
-    def pbc(self, value: tuple[bool]):
-        """Set the periodic boundary conditions."""
-        raise NotImplementedError("Direct modification is not implemented.")
 
     @property
     @get_from_db
@@ -169,12 +143,6 @@ class StructureDataCore:
         """
         return self._data["cell"]
 
-    @cell.setter
-    @immutability_cloak
-    def cell(self, value):
-        """Set the cell."""
-        raise NotImplementedError("Direct modification is not implemented.")
-
     @property
     @get_from_db
     def sites(self):
@@ -184,15 +152,18 @@ class StructureDataCore:
         except AttributeError:
             raw_sites = []
         return [Site(raw=i) for i in raw_sites]
-
+    
     @sites.setter
-    @immutability_cloak
     def sites(self, value):
         """Set the sites."""
-        raise NotImplementedError("Direct modification is not implemented.")
-
-    # derived properties:
-
+        if not self._mutable:
+            raise AttributeError("The StructureData is not mutable")
+        #the_sites = _get_valid_cell(value)
+        #self._data["sites"] = the_sites
+        else:
+            raise NotImplementedError("Please use the `add_atom` method.")
+        
+    # derived properties: no setter methods.
     @property
     def cell_lengths(self):
         """Get the lengths of cell lattice vectors in angstroms."""
@@ -205,10 +176,6 @@ class StructureDataCore:
             numpy.linalg.norm(cell[2]),
         ]
 
-    @cell_lengths.setter
-    @immutability_cloak
-    def cell_lengths(self, value):
-        raise NotImplementedError("Direct modification is not implemented.")
 
     @property
     def cell_angles(self):
@@ -225,11 +192,6 @@ class StructureDataCore:
                 numpy.vdot(cell[0], cell[1]) / lengths[0] / lengths[1],
             ]
         ]
-
-    @cell_angles.setter
-    @immutability_cloak
-    def cell_angles(self, value):
-        raise NotImplementedError("Direct modification is not implemented.")
 
     @property
     def is_alloy(self):
@@ -268,7 +230,7 @@ class StructureDataCore:
         data["sites"] = []
         # self.clear_kinds()  # This also calls clear_sites
         for atom in aseatoms:
-            new_site = Site.atom_to_site(ase=atom)
+            new_site = Site.atom_to_site(aseatom=atom)
             data["sites"].append(new_site)
 
         structure = cls(**data)
@@ -411,8 +373,8 @@ class StructureDataCore:
                 "symbol": site.specie.symbol,
                 "weights": site.species.weight,
                 "position": site.coords.tolist(),
-                "charge": site.specie.oxi_state,
-                #'magmom': site.specie.spin,
+                "charge": site.properties.get("charge", 0.0),
+                'magmom': site.properties.get("magmom", [0.0, 0.0, 0.0]),
             }
 
             if kind_name is not None:
@@ -424,19 +386,37 @@ class StructureDataCore:
 
         return structure
 
-    @get_from_db
     def to_dict(
-        self,
-    ):
-        return self._data
+            self, 
+            detect_kinds: bool = False
+        ):
+            """
+            Convert the structure to a dictionary representation.
 
-    def get_site_property(self, property):
+            :param detect_kinds: Whether to detect and include the kinds of the structure.
+            :type detect_kinds: bool, optional
+            :return: The structure as a dictionary.
+            :rtype: dict
+            """
+            if isinstance(self, StructureData):
+                dict_repr = copy.deepcopy(self.base.attributes.all)
+            else:
+                dict_repr = copy.deepcopy(self._data)
+                
+            if detect_kinds:
+                dict_repr["sites"] = self.get_kinds(ready_for_use=True)
+                
+            # dict_repr = get_serialized_data(dict_repr)
+            
+            return dict_repr
+    
+    def get_site_property(self, property_name):
         """Return a list with length equal to the number of sites of this structure,
         where each element of the list is the property of the corresponding site.
 
         :return: a list of floats
         """
-        return [getattr(this_site, property) for this_site in self.sites]
+        return np.array([getattr(this_site, property_name) for this_site in self.sites])
 
     def get_property_names(self, domain=None):
         """get a list of properties
@@ -449,6 +429,22 @@ class StructureDataCore:
         elif domain == "site":
             return Site._site_properties
 
+
+    def get_charges(self,):
+        return self.get_site_property("charge")
+    
+    def get_magmoms(self,):
+        return self.get_site_property("magmom")
+    
+    def get_kind_names(self,):
+        return self.get_site_property("kind_name")
+    
+    def get_positions(self,):
+        return self.get_site_property("position")
+    
+    def get_symbols(self,):
+        return self.get_site_property("symbol")
+    
     def get_cell_volume(self):
         """Returns the three-dimensional cell volume in Angstrom^3.
 
@@ -493,37 +489,37 @@ class StructureDataCore:
             assume one of the following values:
 
             * 'hill' (default): count the number of atoms of each species,
-              then use Hill notation, i.e. alphabetical order with C and H
-              first if one or several C atom(s) is (are) present, e.g.
-              ``['C','H','H','H','O','C','H','H','H']`` will return ``'C2H6O'``
-              ``['S','O','O','H','O','H','O']``  will return ``'H2O4S'``
-              From E. A. Hill, J. Am. Chem. Soc., 22 (8), pp 478-494 (1900)
+            then use Hill notation, i.e. alphabetical order with C and H
+            first if one or several C atom(s) is (are) present, e.g.
+            ``['C','H','H','H','O','C','H','H','H']`` will return ``'C2H6O'``
+            ``['S','O','O','H','O','H','O']``  will return ``'H2O4S'``
+            From E. A. Hill, J. Am. Chem. Soc., 22 (8), pp 478-494 (1900)
 
             * 'hill_compact': same as hill but the number of atoms for each
-              species is divided by the greatest common divisor of all of them, e.g.
-              ``['C','H','H','H','O','C','H','H','H','O','O','O']``
-              will return ``'CH3O2'``
+            species is divided by the greatest common divisor of all of them, e.g.
+            ``['C','H','H','H','O','C','H','H','H','O','O','O']``
+            will return ``'CH3O2'``
 
             * 'reduce': group repeated symbols e.g.
-              ``['Ba', 'Ti', 'O', 'O', 'O', 'Ba', 'Ti', 'O', 'O', 'O',
-              'Ba', 'Ti', 'Ti', 'O', 'O', 'O']`` will return ``'BaTiO3BaTiO3BaTi2O3'``
+            ``['Ba', 'Ti', 'O', 'O', 'O', 'Ba', 'Ti', 'O', 'O', 'O',
+            'Ba', 'Ti', 'Ti', 'O', 'O', 'O']`` will return ``'BaTiO3BaTiO3BaTi2O3'``
 
             * 'group': will try to group as much as possible parts of the formula
-              e.g.
-              ``['Ba', 'Ti', 'O', 'O', 'O', 'Ba', 'Ti', 'O', 'O', 'O',
-              'Ba', 'Ti', 'Ti', 'O', 'O', 'O']`` will return ``'(BaTiO3)2BaTi2O3'``
+            e.g.
+            ``['Ba', 'Ti', 'O', 'O', 'O', 'Ba', 'Ti', 'O', 'O', 'O',
+            'Ba', 'Ti', 'Ti', 'O', 'O', 'O']`` will return ``'(BaTiO3)2BaTi2O3'``
 
             * 'count': same as hill (i.e. one just counts the number
-              of atoms of each species) without the re-ordering (take the
-              order of the atomic sites), e.g.
-              ``['Ba', 'Ti', 'O', 'O', 'O','Ba', 'Ti', 'O', 'O', 'O']``
-              will return ``'Ba2Ti2O6'``
+            of atoms of each species) without the re-ordering (take the
+            order of the atomic sites), e.g.
+            ``['Ba', 'Ti', 'O', 'O', 'O','Ba', 'Ti', 'O', 'O', 'O']``
+            will return ``'Ba2Ti2O6'``
 
             * 'count_compact': same as count but the number of atoms
-              for each species is divided by the greatest common divisor of
-              all of them, e.g.
-              ``['Ba', 'Ti', 'O', 'O', 'O','Ba', 'Ti', 'O', 'O', 'O']``
-              will return ``'BaTiO3'``
+            for each species is divided by the greatest common divisor of
+            all of them, e.g.
+            ``['Ba', 'Ti', 'O', 'O', 'O','Ba', 'Ti', 'O', 'O', 'O']``
+            will return ``'BaTiO3'``
 
         :param separator: a string used to concatenate symbols. Default empty.
 
@@ -577,7 +573,7 @@ class StructureDataCore:
             f"mode `{mode}` is invalid, choose from `full`, `reduced` or `fractional`."
         )
 
-    def get_kinds(self, kind_tags=[], exclude=[], custom_thr={}):
+    def get_kinds(self, kind_tags=[], exclude=["weight"], custom_thr={}, ready_for_use=False):
         """
         Get the list of kinds, taking into account all the properties.
         If the list of kinds is already provided--> len(kind_tags)>0, we check the consistency of it
@@ -634,7 +630,7 @@ class StructureDataCore:
         default_thresholds = {
             "charge": 0.1,
             "mass": 1e-4,
-            "magnetization": 1e-2,
+            "magmom": 1e-4, # _MAGMOM_THRESHOLD
         }
 
         list_tags = []
@@ -652,22 +648,21 @@ class StructureDataCore:
 
         # Step 1:
         kind_properties = []
-        kinds_dictionary = {"kinds": {}}
+        kinds_dictionary = {"kind_name": {}}
         for single_property in self.get_property_names(domain="site"):
-            if single_property not in ["symbol", "position", "kind_name"] + exclude:
+            if single_property not in ["symbol", "position", "kind_name",] + exclude:
                 # prop = self.get_site_property(single_property)
                 thr = custom_thr.get(
                     single_property, default_thresholds.get(single_property)
                 )
                 kinds_dictionary[single_property] = {}
-                # for this if, refer to the description of the `to_kinds` method of the IntraSiteProperty class.
 
                 kinds_per_property = self._to_kinds(
                     property_name=single_property, symbols=symbols, thr=thr
                 )
                 kind_properties.append(kinds_per_property[0])
                 # I prefer to store again under the key 'value', may be useful in the future
-                kinds_dictionary[single_property] = kinds_per_property[1].tolist()
+                kinds_dictionary[single_property] = kinds_per_property[1]
 
         k = np.array(kind_properties)
         k = k.T
@@ -675,7 +670,7 @@ class StructureDataCore:
         # Step 2:
         kinds = np.zeros(len(self.get_site_property("symbol")), dtype=int) - 1
         check_array = np.zeros(len(self.get_site_property("position")), dtype=int)
-        kind_names = copy.deepcopy(symbols)
+        kind_names = symbols.tolist()
         kind_numeration = []
         for i in range(len(k)):
             # Goes from the first symbol... so the numbers will be from zero to N (Please note: the symbol does not matter: Li0, Cu1... not Li0, Cu0.)
@@ -693,20 +688,23 @@ class StructureDataCore:
                     kind_numeration.append(i)
 
                 kind_names[where] = f"{element}{kind_numeration[-1]}"
-
+                
                 check_array[where] = i
+                #print(f"site {where} is {element}{kind_numeration[-1]}")
 
             if len(np.where(kinds == -1)[0]) == 0:
-                # print(f"search ended at iteration {i}")
+                #print(f"search ended at iteration {i}")
                 break
 
         # Step 3:
-        kinds_dictionary["kinds"] = [
-            kind_names[i] if not kind_tags[i] else kind_tags[i]
+        kinds_dictionary["kind_name"] = [
+            kind_names[i]  if not kind_tags[i] else kind_tags[i]
             for i in range(len(kind_tags))
         ]
+        
         kinds_dictionary["index"] = kind_numeration
-        kinds_dictionary["symbols"] = symbols
+        kinds_dictionary["symbol"] = symbols
+        kinds_dictionary["position"] = self.get_site_property("position")
 
         # Step 4: check on the kind_tags consistency with the properties value.
         if check_kinds and not np.array_equal(check_array, array_tags):
@@ -714,6 +712,16 @@ class StructureDataCore:
                 "The kinds you provided in the `kind_tags` input are not correct, as properties values are not consistent with them. Please check that this is what you want."
             )
 
+        if ready_for_use:
+            new_sites = []
+            for index_kind in kinds_dictionary["index"]:
+                dict_site = {}
+                for k,v in kinds_dictionary.items():
+                    if k != "index": 
+                        dict_site[k] = v[index_kind].tolist() if isinstance(v[index_kind], np.ndarray) else v[index_kind]
+                new_sites.append(dict_site)
+            return new_sites
+            
         return kinds_dictionary
 
     def to_ase(self):
@@ -721,8 +729,8 @@ class StructureDataCore:
         Requires to be able to import ase.
 
         :return: an ASE object corresponding to this
-          :py:class:`StructureData <aiida.orm.nodes.data.structure.StructureData>`
-          object.
+        :py:class:`StructureData <aiida.orm.nodes.data.structure.StructureData>`
+        object.
 
         .. note:: If any site is an alloy or has vacancies, a ValueError
             is raised (from the site.to_ase() routine).
@@ -1342,30 +1350,42 @@ class StructureDataCore:
             kinds_values: list of the associated property value to each kind detected.
         """
         symbols_array = np.array(symbols)
-        prop_array = np.array(self.get_site_property(property_name))
+        
+        if isinstance(self.get_site_property(property_name)[0], list) or isinstance(self.get_site_property(property_name)[0], np.ndarray):
+            #reference_array = np.array(self.get_site_property(property_name)[0]) # I take the difference to detect also the case [1,0,0] != [-1,0,0]
+            #prop_array = np.array([np.linalg.norm(row-reference_array) for row in self.get_site_property(property_name)])
+            prop_array = np.array(self.get_site_property(property_name))
+            shape_1 = len(prop_array[0])
+            kinds_values = np.zeros((len(symbols_array),shape_1))
+        else: 
+            prop_array = np.array(self.get_site_property(property_name))
+            kinds_values = np.zeros(len(symbols_array))
 
-        if thr == 0:
+        
+        if thr == 0 or not thr:
             return np.array(range(len(prop_array))), prop_array
 
         # list for the value of the property for each generated kind.
-        kinds_values = np.zeros(len(symbols_array))
 
-        indexes = np.array((prop_array - np.min(prop_array)) / thr, dtype=int)
+        if isinstance(prop_array[0], np.ndarray):
+            indexes = np.array([np.linalg.norm(row-prop_array[0])/ thr for row in prop_array], dtype=int)
+        else:
+            indexes = np.array((prop_array - np.min(prop_array)) / thr, dtype=int)
 
         # Here we select the closest value present in the property values
         set_indexes = set(indexes)
+
         for index in set_indexes:
             where_index_in_indexes = np.where(indexes == index)[0]
-            kinds_values[where_index_in_indexes] = np.min(
-                prop_array[where_index_in_indexes]
-            )
+            kinds_values[where_index_in_indexes] = prop_array[where_index_in_indexes[0]]
+            
 
         # here we reorder from zero the kinds.
         list_set_indexes = list(set_indexes)
         kinds_labels = np.zeros(len(symbols_array), dtype=int)
         for i in range(len(list_set_indexes)):
             kinds_labels[np.where(indexes == list_set_indexes[i])[0]] = i
-
+        
         return kinds_labels, kinds_values
 
     def __getitem__(self, index):
@@ -1383,6 +1403,17 @@ class StructureDataCore:
     ):
         return len(self.sites)
 
+    def get_global_properties(self,):
+        # for then easy query
+        global_prop_dict = {}
+        for prop in self.get_property_names(domain="site"):
+            global_prop_dict[prop+'s'] = self.get_site_property(prop)
+            #setattr(self, prop+'s', property(lambda self: getattr(self, prop)))
+            
+        global_prop_dict['volume'] = self.get_cell_volume()
+        global_prop_dict['dimensionality'] = self._get_dimensionality()['dim']
+        
+        return global_prop_dict
 
 class StructureData(Data, StructureDataCore):
     """
@@ -1392,21 +1423,28 @@ class StructureData(Data, StructureDataCore):
     :param pbc: A list of three boolean values indicating the periodic boundary conditions (PBC)
                 for each spatial dimension. If not provided, defaults to (True, True, True).
     :param cell: A 3x3 matrix (list of lists) representing the lattice vectors of the cell.
-                 If not provided, a default cell matrix (_DEFAULT_CELL) will be used.
+                If not provided, a default cell matrix (_DEFAULT_CELL) will be used.
     :param sites: A list of Site objects representing the atomic positions and species within the structure.
-                  If not provided, an empty list will be used.
+                If not provided, an empty list will be used.
     """
 
+    _mutable = False
+    
     def __init__(self,
-                 pbc: t.Optional[list[bool]] = None,
-                 cell: t.Optional[list[list[float]]] = None,
-                 sites: t.Optional[list[Site]] = None):
+                pbc: t.Optional[list[bool]] = None,
+                cell: t.Optional[list[list[float]]] = None,
+                sites: t.Optional[list[Site]] = None):
         StructureDataCore.__init__(self, pbc, cell, sites)
         Data.__init__(self)
 
         for prop, value in self._data.items():
             self.base.attributes.set(prop, value)
+            
+        global_properties = self.get_global_properties()
+        #for prop, value in global_properties.items():
+        #    self.base.attributes.set(prop, value)
 
+        
     def to_mutable_structuredata(self):
         from .mutable import StructureDataMutable
 

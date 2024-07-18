@@ -29,6 +29,23 @@ _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
+class ObservedArray(np.ndarray):
+    """
+    This is a subclass of numpy.ndarray that allows to observe changes to the array.
+    In this way, full flexibility of StructureDataMutable is achieved and at the same 
+    time we can keep track of all the changes. 
+    """
+    def __new__(cls, input_array):
+        # Convert input_array to an instance of ObservedArray
+        obj = np.asarray(input_array).view(cls)
+        return obj
+
+    def __setitem__(self, index, value):
+        super(ObservedArray, self).__setitem__(index, value)
+
+    def __array_finalize__(self, obj):
+        # This method is called when the view is created or sliced
+        if obj is None: return
 
 def _get_valid_cell(inputcell):
     """Return the cell in a valid format from a generic input.

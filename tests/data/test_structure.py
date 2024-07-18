@@ -2,8 +2,6 @@ from ase.build import bulk
 import numpy as np
 import pytest
 
-from aiida.common.exceptions import ModificationNotAllowed
-
 from aiida_atomistic.data.structure.core import StructureData
 from aiida_atomistic.data.structure.mutable import StructureDataMutable
 from aiida_atomistic.data.structure.site import Site
@@ -118,11 +116,17 @@ def test_to_be_factorized():
 
     # test StructureDataMutable mutability
 
+    assert np.array_equal(m.pbc,np.array([True, True, True]))
+    
     with pytest.raises(ValueError):
-        m.pbc[0] = False
+        m.pbc[0] = 3
 
     with pytest.raises(AttributeError):
-        m.pbc = [False, False, False]
+        m.pbc = [False, 4, False]
+    
+    with pytest.raises(ValueError):
+        m.set_pbc([False, "True", False])  
+    
 
     m.set_pbc([False, False, False])
     assert not any(m.pbc)

@@ -17,7 +17,10 @@ from aiida_atomistic.data.structure.utils import (
     _create_weights_tuple,
     create_automatic_kind_name,
     validate_weights_tuple,
+    ObservedArray,
 )
+
+
 
 _MASS_THRESHOLD = 1.0e-3
 # Threshold to check if the sum is one or not
@@ -37,7 +40,6 @@ _default_values = {
     "weight": 1,
 }
 
-
 class Site:
 
     _site_properties = [
@@ -55,7 +57,8 @@ class Site:
     It can be a single atom, or an alloy, or even contain vacancies.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, parent=None, index=None, **kwargs):
+                
         """Create a site.
 
         :param kind_name: a string that identifies the kind (species) of this site.
@@ -66,7 +69,10 @@ class Site:
 
         TBD: sites should be always immutable? so we just can use set_* in StructureDataMutable.
         """
-
+        
+        self._parent = parent
+        self._index = index
+        
         for site_property in self._site_properties:
             setattr(self, "_" + site_property, None)
 
@@ -141,10 +147,20 @@ class Site:
         """Return the position of this site in absolute coordinates,
         in angstrom.
         """
-        position = np.array(self._position)
-        position.flags.writeable = False
+        position = ObservedArray(self._position)
+        position.flags.writeable = self._parent._mutable
         return position
 
+    @position.setter
+    def position(self, value):
+        """Setter for the position of the site."""
+        if not self._parent._mutable:
+            raise ValueError("The site is not mutable")
+        
+        value = value.tolist() if isinstance(value, np.ndarray) else value
+        self._position = value # we need to update also the parent
+        self._parent.update_site(self._index, position=value)
+    
     @property
     def charge(self):
         """Return the charge of this site in units of elementary charge."""
@@ -153,9 +169,19 @@ class Site:
     @property
     def magmom(self):
         """Return the magmom of this site in units of Bohr magneton."""
-        magmom = np.array(self._magmom)
+        magmom = ObservedArray(self._magmom)
         magmom.flags.writeable = False
         return magmom
+    
+    @magmom.setter
+    def magmom(self, value):
+        """Setter for the magmom of the site."""
+        if not self._parent._mutable:
+            raise ValueError("The magmom is not mutable")
+        
+        value = value.tolist() if isinstance(value, np.ndarray) else value
+        self._magmom = value # we need to update also the parent
+        self._parent.update_site(self._index, magmom=value)
     
     @property
     def weight(self):
@@ -186,7 +212,7 @@ class Site:
                 )
             position = aseatom.position.tolist()
             symbol = aseatom.symbol
-            kind_name = symbol + str(aseatom.tag).replace("0", "")
+            kind_name = symbol + str(aseatom.tag)
             charge = aseatom.charge
             if aseatom.magmom is None:
                 magmom = [0, 0, 0]

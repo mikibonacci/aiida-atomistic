@@ -42,13 +42,13 @@ Then, you can access the properties directly:
 
 ```python
 print("immutable pbc: ",structure.pbc)
-print("mutable pbc: ",structure.pbc)
+print("mutable pbc: ",mutable_structure.pbc)
 
 print("immutable cell: ",structure.cell)
-print("mutable cell: ",structure.cell)
+print("mutable cell: ",mutable_structure.cell)
 
 print("immutable sites: ",structure.sites)
-print("mutable sites: ",structure.sites)
+print("mutable sites: ",mutable_structure.sites)
 ```
 
 the expected output is:
@@ -113,7 +113,7 @@ If we already have an ASE Atoms or a Pymatgen Structure object, we can use the `
 from ase.build import bulk
 atoms = bulk('Cu', 'fcc', a=3.6)
 atoms.set_initial_charges([1,])
-atoms.set_tags(["2"])
+atoms.set_tags([2])
 
 mutable_structure = StructureDataMutable.from_ase(atoms)
 structure = StructureData.from_ase(atoms)
@@ -185,8 +185,10 @@ The latter method is the preferred one, as you then have support also for additi
 from aiida import orm
 structure = orm.load_node(<StructureData pk>)
 
+
 mutable_structure = structure.to_mutable()
-mutable_structure.set_charges([1,0])
+mutable_structure.set_charges([1, 0])
+
 mutable_structure.set_kind_names(['Si2','Si1'])
 
 new_structure = mutable_structure.to_immutable()
@@ -276,6 +278,7 @@ We then obtain:
 ```
 
 so we can set the new sites:
+
 
 ```python
 mutable_structure.clear_sites()

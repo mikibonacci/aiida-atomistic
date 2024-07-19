@@ -1392,8 +1392,11 @@ class StructureDataCore:
         "ENABLE SLICING. Return a sliced StructureDataCore (or subclasses)."
         # Handle slicing
         sliced_structure_dict = self.to_dict()
-        if isinstance(index, slice) or isinstance(index, int):
+        if isinstance(index, slice):
             sliced_structure_dict["sites"] = sliced_structure_dict["sites"][index]
+            return self.from_dict(sliced_structure_dict)
+        elif isinstance(index, int):
+            sliced_structure_dict["sites"] = [sliced_structure_dict["sites"][index]]
             return self.from_dict(sliced_structure_dict)
         else:
             raise TypeError(f"Invalid argument type: {type(index)}")
@@ -1445,7 +1448,7 @@ class StructureData(Data, StructureDataCore):
         #    self.base.attributes.set(prop, value)
 
         
-    def to_mutable_structuredata(self):
+    def to_immutable(self):
         from .mutable import StructureDataMutable
 
         return StructureDataMutable(**self.to_dict())

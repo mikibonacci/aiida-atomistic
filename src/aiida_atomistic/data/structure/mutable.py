@@ -119,5 +119,5 @@ class StructureDataMutable(StructureDataCore):
     def clear_sites(self,):
         self._data["sites"] = []
     
-    def to_structuredata(self):
+    def to_immutable(self):
         return StructureData(**self.to_dict())

@@ -12,7 +12,7 @@ The idea is to provide another python class which is just the mutable version of
 
 As both `StructureData` and `StructureDataMutable` share the same data structure, they also share the same constructor input parameter, which is just a python dictionary. The format of this dictionary exactly reflects how the data are store in the AiiDA database:
 
-```python=
+```python
 
 from aiida_atomistic.data.structure.core import StructureData
 from aiida_atomistic.data.structure.mutable import StructureDataMutable
@@ -40,7 +40,7 @@ structure = StructureData(**structure_dict)
 When this dictionary is provided to the constructor, validation check for each of the provided property is done (**for now, only pbc and cell**).
 Then, you can access the properties directly:
 
-```python=
+```python
 print("immutable pbc: ",structure.pbc)
 print("mutable pbc: ",mutable_structure.pbc)
 
@@ -53,7 +53,7 @@ print("mutable sites: ",mutable_structure.sites)
 
 the expected output is:
 
-```shell=
+```shell
 immutable pbc:  [ True  True  True]
 mutable pbc:  [ True  True  True]
 immutable cell:  [[2.75 2.75 0.  ]
@@ -68,7 +68,7 @@ mutable sites:  [<Site: kind name 'Si' @ 0.75,0.75,0.75>, <Site: kind name 'Si' 
 
 To inspect the properties of a single site, we can access it:
 
-```python=
+```python
 print(structure.sites[0].symbol,structure.sites[0].position) # output: Si [0.75 0.75 0.75]
 ```
 
@@ -78,7 +78,7 @@ For now, other supported properties are `charge` (not yet `tot_charge`), `kind_n
 We can initialize a charged structure in this way:
 
 
-```python=
+```python
 structure_dict = {
     'cell':[[2.75,2.75,0],[0,2.75,2.75],[2.75,0,2.75]],
     'pbc': [True,True,True],
@@ -109,7 +109,7 @@ To access the properties summarized for all the sites, you can use methods like 
 
 If we already have an ASE Atoms or a Pymatgen Structure object, we can use the `from_ase` and `from_pymatgen` methods:
 
-```python=
+```python
 from ase.build import bulk
 atoms = bulk('Cu', 'fcc', a=3.6)
 atoms.set_initial_charges([1,])
@@ -123,7 +123,7 @@ structure.to_dict(detect_kinds=False)
 
 This should have as output:
 
-```shell=
+```shell
 {'pbc': (True, True, True),
  'cell': [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]],
  'sites': [{'symbol': 'Cu',
@@ -138,7 +138,7 @@ The `detect_kinds`parameter, if `True`, provides automatically detected kind_nam
 
 This support also the properties like charges (coming soon: magmoms and so on). In the same way, for pymatgen we can proceed as follows:
 
-```python=
+```python
 from pymatgen.core import Lattice, Structure, Molecule
 
 coords = [[0, 0, 0], [0.75,0.5,0.75]]
@@ -155,7 +155,7 @@ mutable_structure.to_dict()
 
 the output being:
 
-```shell=
+```shell
 {'pbc': (True, True, True),
  'cell': [[3.84, 0.0, 2.351321854362918e-16],
   [1.92, 2.7152900397563426, -1.919999999999999],
@@ -181,21 +181,23 @@ The latter method is the preferred one, as you then have support also for additi
 
 `StructureDataMutable` contains several `set_` methods and more, needed to update a structure:
 
-```python=
+```python
 from aiida import orm
 structure = orm.load_node(<StructureData pk>)
 
-mutable_structure = structure.to_mutable_structuredata()
+
+mutable_structure = structure.to_mutable()
 mutable_structure.set_charges([1, 0])
+
 mutable_structure.set_kind_names(['Si2','Si1'])
 
-new_structure = mutable_structure.to_structuredata()
+new_structure = mutable_structure.to_immutable()
 ```
 
 Other available methods are `add_atom`, `pop_atom`, `update_site` and so on.
 Indeed, we can also start from scratch:
 
-```python=
+```python
 mutable_structure = StructureDataMutable()
 mutable_structure.set_cell([[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]])
 mutable_structure.add_atom({
@@ -219,15 +221,15 @@ It is also possible to directly access the single properties and modify them, bu
 
 It is possible to *slice* a structure, i.e. returning only a part of it (in terms of sites). Let's suppose that you have an heterostructure and you want to obtain only the first layer, composed of the first 4 atoms over 10 total. This works for both `StructureDataMutable` and `StructureData` (we return a new `StructureData` instance).
 
-```python=
+```python
 sliced_structure = structure[:4]
 ```
 
 ## Passing from StructureData to StructureDataMutable and viceversa
 
-```python=
-mutable_structure.to_structuredata() # returns an instance of StructureData
-structure.to_mutable_structuredata() # returns an instance of StructureDataMutable
+```python
+mutable_structure.to_immutable() # returns an instance of StructureData
+structure.to_mutable() # returns an instance of StructureDataMutable
 ```
 
 ## Automatic kinds generation
@@ -235,7 +237,7 @@ structure.to_mutable_structuredata() # returns an instance of StructureDataMutab
 It is possible to generate the kind_names and the corresponding mapped properties for a given structure. 
 You can do it by using the `get_kinds` method.
 
-```python=
+```python
 Fe_BCC_dictionary = {'pbc': (True, True, True),
         'cell': [[2.8403, 0.0, 1.7391821518091137e-16],
         [-1.7391821518091137e-16, 2.8403, 1.7391821518091137e-16],
@@ -260,7 +262,7 @@ new_sites = mutable_structure.get_kinds(ready_to_use=True)
 By setting `ready_to_use`to True, we provide a list of sites ready to be used in our structure.
 We then obtain:
 
-```shell=
+```shell
 [{'kind_name': 'Fe0',
   'mass': 55.845,
   'charge': 0.0,
@@ -277,7 +279,8 @@ We then obtain:
 
 so we can set the new sites:
 
-```python=
+
+```python
 mutable_structure.clear_sites()
 new_sites = mutable_structure.get_kinds(ready_to_use=True)
 for site in new_sites:

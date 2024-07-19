@@ -185,11 +185,11 @@ The latter method is the preferred one, as you then have support also for additi
 from aiida import orm
 structure = orm.load_node(<StructureData pk>)
 
-mutable_structure = structure.to_mutable_structuredata()
+mutable_structure = structure.to_mutable()
 mutable_structure.set_charges([1,0])
 mutable_structure.set_kind_names(['Si2','Si1'])
 
-new_structure = mutable_structure.to_structuredata()
+new_structure = mutable_structure.to_immutable()
 ```
 
 Other available methods are `add_atom`, `pop_atom`, `update_site` and so on.
@@ -226,8 +226,8 @@ sliced_structure = structure[:4]
 ## Passing from StructureData to StructureDataMutable and viceversa
 
 ```python
-mutable_structure.to_structuredata() # returns an instance of StructureData
-structure.to_mutable_structuredata() # returns an instance of StructureDataMutable
+mutable_structure.to_immutable() # returns an instance of StructureData
+structure.to_mutable() # returns an instance of StructureDataMutable
 ```
 
 ## Automatic kinds generation

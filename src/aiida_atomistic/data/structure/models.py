@@ -21,7 +21,7 @@ try:
 except ImportError:
     has_ase = False
 
-    ASE_ATOMS_TYPE = t.t.Any
+    ASE_ATOMS_TYPE = t.Any
 
 try:
     import pymatgen.core as core  # noqa: F401
@@ -32,8 +32,8 @@ try:
 except ImportError:
     has_pymatgen = False
 
-    PYMATGEN_MOLECULE = t.t.Any
-    PYMATGEN_STRUCTURE = t.t.Any
+    PYMATGEN_MOLECULE = t.Any
+    PYMATGEN_STRUCTURE = t.Any
 
 
 from aiida_atomistic.data.structure.utils import (

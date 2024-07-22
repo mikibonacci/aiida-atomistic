@@ -21,7 +21,7 @@ try:
 except ImportError:
     has_ase = False
 
-    ASE_ATOMS_TYPE = t.t.Any
+    ASE_ATOMS_TYPE = t.Any
 
 try:
     import pymatgen.core as core  # noqa: F401
@@ -32,8 +32,8 @@ try:
 except ImportError:
     has_pymatgen = False
 
-    PYMATGEN_MOLECULE = t.t.Any
-    PYMATGEN_STRUCTURE = t.t.Any
+    PYMATGEN_MOLECULE = t.Any
+    PYMATGEN_STRUCTURE = t.Any
 
 
 from aiida_atomistic.data.structure.utils import (
@@ -248,7 +248,7 @@ class GetterMixin:
             dict_repr = copy.deepcopy(self.properties.dict())
                 
             if detect_kinds:
-                dict_repr["sites"] = self.get_kinds(ready_for_use=True)
+                dict_repr["sites"] = self.get_kinds(ready_to_use=True)
                 
             # dict_repr = get_serialized_data(dict_repr)
             
@@ -414,7 +414,7 @@ class GetterMixin:
             f"mode `{mode}` is invalid, choose from `full`, `reduced` or `fractional`."
         )
 
-    def get_kinds(self, kind_tags=[], exclude=["weight"], custom_thr={}, ready_for_use=False):
+    def get_kinds(self, kind_tags=[], exclude=["weight"], custom_thr={}, ready_to_use=False):
         """
         Get the list of kinds, taking into account all the properties.
         If the list of kinds is already provided--> len(kind_tags)>0, we check the consistency of it
@@ -490,7 +490,7 @@ class GetterMixin:
         # Step 1:
         kind_properties = []
         kinds_dictionary = {"kind_name": {}}
-        for single_property in self.get_property_names(domain="site"):
+        for single_property in self.properties.sites[0].dict().keys():
             if single_property not in ["symbol", "position", "kind_name",] + exclude:
                 # prop = self.get_site_property(single_property)
                 thr = custom_thr.get(
@@ -553,7 +553,7 @@ class GetterMixin:
                 "The kinds you provided in the `kind_tags` input are not correct, as properties values are not consistent with them. Please check that this is what you want."
             )
 
-        if ready_for_use:
+        if ready_to_use:
             new_sites = []
             for index_kind in kinds_dictionary["index"]:
                 dict_site = {}
@@ -561,7 +561,7 @@ class GetterMixin:
                     if k not in ["symbol","position","index"]: 
                         dict_site[k] = v[index_kind].tolist() if isinstance(v[index_kind], np.ndarray) else v[index_kind]
                 for value in ["symbol","position"]:
-                    dict_site[value] = kinds_dictionary[value].pop()
+                    dict_site[value] = kinds_dictionary[value][index_kind]
                 new_sites.append(dict_site)
             return new_sites
             
@@ -1232,15 +1232,15 @@ class GetterMixin:
         return kinds_labels, kinds_values
 
     def __getitem__(self, index):
-        "ENABLE SLICING. Return a sliced StructureDataCore (or subclasses)."
+        "ENABLE SLICING. Return a sliced StructureData."
         # Handle slicing
-        sliced_structure_dict = self.to_dict()
+        sliced_structure_dict = self.properties.dict()
         if isinstance(index, slice):
             sliced_structure_dict["sites"] = sliced_structure_dict["sites"][index]
-            return self.from_dict(sliced_structure_dict)
+            return self.__class__(**sliced_structure_dict)
         elif isinstance(index, int):
             sliced_structure_dict["sites"] = [sliced_structure_dict["sites"][index]]
-            return self.from_dict(sliced_structure_dict)
+            return self.__class__(**sliced_structure_dict)
         else:
             raise TypeError(f"Invalid argument type: {type(index)}")
 
@@ -1333,9 +1333,7 @@ class SetterMixin:
         if len(self.properties.sites) < index:
             raise IndexError("insert_atom index out of range")
         else:
-            self.properties.sites.append(new_site) if index == -1 else self._data[
-                "sites"
-            ].insert(index, new_site)
+            self.properties.sites.append(new_site) if index == -1 else self.properties.sites.insert(index, new_site)
 
     def pop_atom(self, index=None):
         # If no index is provided, pop the last item

@@ -120,7 +120,7 @@ class SiteCore(BaseModel):
             magmom = [0,0,0] if magmom is None else magmom
             mass = _atomic_masses[symbol] if mass is None else mass
 
-        new_site = dict(
+        new_site = cls(
             symbol=symbol,
             kind_name=kind_name,
             position=position.tolist() if isinstance(position, np.ndarray) else position,

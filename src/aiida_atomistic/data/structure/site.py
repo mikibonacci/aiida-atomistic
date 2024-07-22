@@ -1,5 +1,7 @@
 import numpy as np
-import typing as t 
+
+import typing as t
+from pydantic import BaseModel, Field, field_validator, computed_field,model_validator
 
 try:
     import ase  # noqa: F401
@@ -18,8 +20,9 @@ from aiida_atomistic.data.structure.utils import (
     create_automatic_kind_name,
     validate_weights_tuple,
     ObservedArray,
+    FrozenList,
+    freeze_nested,
 )
-
 
 
 _MASS_THRESHOLD = 1.0e-3
@@ -40,155 +43,38 @@ _default_values = {
     "weight": 1,
 }
 
-class Site:
-
-    _site_properties = [
-        "symbol",
-        "position",
-        "mass",
-        "kind_name",
-        "weight",
-        "charge",
-        "magmom",
-    ]
+class SiteCore(BaseModel):
+                
+    symbol: t.Literal[_valid_symbols]
+    kind_name: str | t.Any = None
+    position: list | t.Any = Field(min_length=3, max_length=3)
+    mass: float | t.Any 
+    charge: float | t.Any = 0
+    magmom: t.List[float] | t.Any = Field(min_length=3, max_length=3, default=[0.0, 0.0, 0.0])
+    
+    class Config:
+        from_attributes = True
+        frozen=False
+        arbitrary_types_allowed=True
 
     """This class contains the information about a given site of the system.
 
     It can be a single atom, or an alloy, or even contain vacancies.
     """
-
-    def __init__(self, parent=None, index=None, **kwargs):
-                
-        """Create a site.
-
-        :param kind_name: a string that identifies the kind (species) of this site.
-                This has to be found in the list of kinds of the StructureData
-                object.
-                Validation will be done at the StructureData level.
-        :param position: the absolute position (three floats) in angstrom
-
-        TBD: sites should be always immutable? so we just can use set_* in StructureDataMutable.
-        """
+    
+    @field_validator('position','magmom')
+    def validate_list(cls, v: t.List[float]) -> t.Any:
         
-        self._parent = parent
-        self._index = index
-        
-        for site_property in self._site_properties:
-            setattr(self, "_" + site_property, None)
-
-        if "site" in kwargs:
-            site = kwargs.pop("site")
-            if kwargs:
-                raise ValueError(
-                    "If you pass 'site', you cannot pass any further parameter to the Site constructor"
-                )
-            if not isinstance(site, Site):
-                raise ValueError("'site' must be of type Site")
-            for site_property in self._site_properties:
-                setattr(self, "_" + site_property, getattr(site, site_property))
-        elif "raw" in kwargs:
-            raw = kwargs.pop("raw")
-            if kwargs:
-                raise ValueError(
-                    "If you pass 'raw', you cannot pass any further parameter to the Site constructor"
-                )
-            try:
-                for site_property in self._site_properties:
-                    if site_property in raw.keys():
-                        setattr(self, "_" + site_property, raw[site_property])
-                    else:
-                        setattr(self, "_" + site_property, self._get_default(site_property))
-            except KeyError as exc:
-                raise ValueError(
-                    f"Invalid raw object, it does not contain any key {exc.args[0]}"
-                )
-            except TypeError:
-                raise ValueError("Invalid raw object, it is not a dictionary")
-
+        if not cls._mutable.default:
+            return freeze_nested(v)
         else:
-            try:
-                for site_property in self._site_properties:
-                    if site_property in kwargs.keys():
-                        setattr(self, "_" + site_property, kwargs.pop(site_property))
-            except KeyError as exc:
-                raise ValueError(f"You need to specify {exc.args[0]}")
-            if kwargs:
-                raise ValueError(f"Unrecognized parameters: {kwargs.keys}")
-
-    @property
-    def symbol(self):
-        """Return the symbol of this site (a string).
-
-        The type of a site is used to decide whether two sites are identical
-        (same mass, symbol, weight, ...) or not.
-        """
-        return self._symbol
-
-    @property
-    def mass(self):
-        """Return the mass of this site (a float).
-
-        The type of a site is used to decide whether two sites are identical
-        (same mass, symbol, weight, ...) or not.
-        """
-        return self._mass
-
-    @property
-    def kind_name(self):
-        """Return the kind name of this site (a string).
-
-        The type of a site is used to decide whether two sites are identical
-        (same mass, symbol, weight, ...) or not.
-        """
-        return self._kind_name
-
-    @property
-    def position(self):
-        """Return the position of this site in absolute coordinates,
-        in angstrom.
-        """
-        position = ObservedArray(self._position)
-        position.flags.writeable = self._parent._mutable
-        return position
-
-    @position.setter
-    def position(self, value):
-        """Setter for the position of the site."""
-        if not self._parent._mutable:
-            raise ValueError("The site is not mutable")
+            return v
         
-        value = value.tolist() if isinstance(value, np.ndarray) else value
-        self._position = value # we need to update also the parent
-        self._parent.update_site(self._index, position=value)
-    
-    @property
-    def charge(self):
-        """Return the charge of this site in units of elementary charge."""
-        return self._charge
-
-    @property
-    def magmom(self):
-        """Return the magmom of this site in units of Bohr magneton."""
-        magmom = ObservedArray(self._magmom)
-        magmom.flags.writeable = False
-        return magmom
-    
-    @magmom.setter
-    def magmom(self, value):
-        """Setter for the magmom of the site."""
-        if not self._parent._mutable:
-            raise ValueError("The magmom is not mutable")
-        
-        value = value.tolist() if isinstance(value, np.ndarray) else value
-        self._magmom = value # we need to update also the parent
-        self._parent.update_site(self._index, magmom=value)
-    
-    @property
-    def weight(self):
-        """weight for this species kind. Refer also to
-        :func:validate_symbols_tuple for the validation rules on the weight.
-        """
-        return self._weight
+    @model_validator(mode='before')
+    def check_minimal_requirements(cls, data):
+        if not data.get("mass", None):
+            data["mass"] = _atomic_masses[data["symbol"]]
+        return data
 
 
     @staticmethod
@@ -244,19 +130,11 @@ class Site:
         )
 
         return new_site
-
-    def get_raw(self):
-        """Return the raw version of the site, mapped to a suitable dictionary.
-        This is the format that is actually used to store each site of the
-        structure in the DB.
-
-        :return: a python dictionary with the site.
-        """
-        return {
-            site_property: getattr(self, site_property)
-            for site_property in self._site_properties
-        }
-
+    
+    def update(self, **new_data):
+            for field, value in new_data.items():
+                setattr(self, field, value)
+    
     def set_automatic_kind_name(self, tag=None):
         """Set the type to a string obtained with the symbols appended one
         after the other, without spaces, in alphabetical order;
@@ -287,11 +165,7 @@ class Site:
         # we should put a small routine to do tags. or instead of kinds, provide the tag (or tag mapping).
         tag = None
         aseatom = ase.Atom(
-            position=self.position,
-            symbol=self.symbol,
-            mass=self.mass,
-            charge=self.charge,
-            magmom=self.magmom,
+            **self.dict()
         )
 
         tag = self.kind_name.replace(self.symbol, "")
@@ -303,17 +177,39 @@ class Site:
             aseatom.tag = tag
         return aseatom
 
-    def _get_default(self, site_property):
-        if site_property == "mass":
-            default_value = _atomic_masses[self.symbol]
-        elif site_property == "kind_name":
-            default_value = self.symbol
-        else:
-            default_value = _default_values[site_property]
-        return default_value
-
     def __repr__(self):
         return f"<{self.__class__.__name__}: {self!s}>"
 
     def __str__(self):
         return f"kind name '{self.kind_name}' @ {self.position[0]},{self.position[1]},{self.position[2]}"
+
+# The Classes which are exposed to the user:
+class SiteMutable(SiteCore):
+    
+    _mutable = True
+    
+    symbol: str
+    kind_name: str | t.Any = None
+    position: list | t.Any = None
+    mass: float | t.Any = None
+    charge: float | t.Any = 0
+    magmom: t.List[float] | t.Any = Field(min_length=3, max_length=3, default=[0.0, 0.0, 0.0])
+    
+    class Config:
+        from_attributes = True
+        frozen= False
+    
+class SiteImmutable(SiteCore):
+    
+    _mutable = False
+    
+    symbol: str
+    kind_name: str | t.Any = None
+    position: list
+    mass: float | t.Any = None
+    charge: float | t.Any = 0
+    magmom: t.List[float] | t.Any = Field(min_length=3, max_length=3, default=[0.0, 0.0, 0.0])
+    
+    class Config:
+        from_attributes = True
+        frozen= True

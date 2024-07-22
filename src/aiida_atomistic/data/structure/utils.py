@@ -16,6 +16,7 @@ try:
 except ImportError:
     pass
 
+from plumpy.utils import AttributesFrozendict
 
 # Threshold used to check if the mass of two different Site objects is the same.
 
@@ -28,6 +29,8 @@ _DEFAULT_CELL = ((0, 0, 0), (0, 0, 0), (0, 0, 0))
 _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
+_dimensionality_label = {0: '', 1: 'length', 2: 'surface', 3: 'volume'}
+
 
 class ObservedArray(np.ndarray):
     """
@@ -47,6 +50,20 @@ class ObservedArray(np.ndarray):
         # This method is called when the view is created or sliced
         if obj is None: return
 
+def freeze_nested(obj):
+    if isinstance(obj, dict):
+        return AttributesFrozendict({k: freeze_nested(v) for k, v in obj.items()})
+    if isinstance(obj, list):
+        return FrozenList(freeze_nested(v) for v in obj)
+    else:
+        return obj
+    
+class FrozenList(list):
+    
+    def __setitem__(self, index, value):
+        raise ValueError("This list is immutable")
+    
+    
 def _get_valid_cell(inputcell):
     """Return the cell in a valid format from a generic input.
 
@@ -149,6 +166,44 @@ def has_spglib():
         return False
     return True
 
+def get_dimensionality(
+    pbc,
+    cell,
+):
+    """Return the dimensionality of the structure and its length/surface/volume.
+
+    Zero-dimensional structures are assigned "volume" 0.
+
+    :return: returns a dictionary with keys "dim" (dimensionality integer), "label" (dimensionality label)
+        and "value" (numerical length/surface/volume).
+    """
+    import numpy as np
+
+    retdict = {}
+
+    pbc = np.array(pbc)
+    cell = np.array(cell)
+
+    dim = len(pbc[pbc])
+
+    retdict["dim"] = dim
+    retdict["label"] = _dimensionality_label[dim]
+
+    if dim not in (0, 1, 2, 3):
+        raise ValueError(f"Dimensionality {dim} must be one of 0, 1, 2, 3")
+
+    if dim == 0:
+        # We have no concept of 0d volume. Let's return a value of 0 for a consistent output dictionary
+        retdict["value"] = 0
+    elif dim == 1:
+        retdict["value"] = np.linalg.norm(cell[pbc])
+    elif dim == 2:
+        vectors = cell[pbc]
+        retdict["value"] = np.linalg.norm(np.cross(vectors[0], vectors[1]))
+    elif dim == 3:
+        retdict["value"] = calc_cell_volume(cell)
+
+    return retdict
 
 def calc_cell_volume(cell):
     """Compute the three-dimensional cell volume in Angstrom^3.

@@ -10,7 +10,7 @@ from aiida import orm
 from aiida.common.constants import elements
 from aiida.orm.nodes.data import Data
 
-from aiida_atomistic.data.structure.site import SiteImmutable
+from aiida_atomistic.data.structure.site import SiteMutable as Site
 
 try:
     import ase  # noqa: F401
@@ -58,59 +58,8 @@ _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
-
-class StructureDataCore(BaseModel):
+class GetterMixin:
     
-    #sites: t.List[SiteMutable] | t.Any
-    pbc: t.List[bool] | t.Any
-    cell: t.List[t.List[float]] | t.Any
-    
-    class Config:
-        from_attributes = True
-        frozen = False
-    
-        
-    @field_validator('pbc')
-    @classmethod
-    def validate_pbc(cls, v: t.List[bool]) -> t.Any:
-        
-        if not isinstance(v, list):
-            if cls._mutable.default:
-                warnings.warn("pbc should be a list")
-            else:
-                raise ValueError("pbc must be a list")
-            return v
-        
-        
-        if len(v) != 3:
-            if cls._mutable.default:
-                warnings.warn("pbc should be a list of length 3")
-            else:
-                raise ValueError("pbc must be a list of length 3")
-            return v
-        
-        if cls._mutable.default:
-            return freeze_nested(v)
-        
-        return v
-    
-    @field_validator('cell')
-    @classmethod
-    def validate_cell(cls, v: t.List[t.List[float]]) -> t.Any:
-        
-        if not isinstance(v, list):
-            if cls._mutable.default:
-                warnings.warn("cell should be a 3x3 list")
-            else:
-                raise ValueError("cell must be a 3x3 list")
-            return v
-        
-        if not cls._mutable.default:
-            return freeze_nested(v)
-        
-        return v
-
-
     @classmethod
     def from_ase(cls, aseatoms: ASE_ATOMS_TYPE):
         """Load the structure from a ASE object"""
@@ -126,7 +75,7 @@ class StructureDataCore(BaseModel):
         data["sites"] = []
         # self.clear_kinds()  # This also calls clear_sites
         for atom in aseatoms:
-            new_site = SiteImmutable.atom_to_site(aseatom=atom)
+            new_site = Site.atom_to_site(aseatom=atom)
             data["sites"].append(new_site)
 
         structure = cls(**data)
@@ -173,18 +122,18 @@ class StructureDataCore(BaseModel):
             of earlier versions may cause errors).
         """
         box = [
-            max(x.coords.tolist()[0] for x in mol.sites)
-            - min(x.coords.tolist()[0] for x in mol.sites)
+            max(x.coords.tolist()[0] for x in mol.properties.sites)
+            - min(x.coords.tolist()[0] for x in mol.properties.sites)
             + 2 * margin,
-            max(x.coords.tolist()[1] for x in mol.sites)
-            - min(x.coords.tolist()[1] for x in mol.sites)
+            max(x.coords.tolist()[1] for x in mol.properties.sites)
+            - min(x.coords.tolist()[1] for x in mol.properties.sites)
             + 2 * margin,
-            max(x.coords.tolist()[2] for x in mol.sites)
-            - min(x.coords.tolist()[2] for x in mol.sites)
+            max(x.coords.tolist()[2] for x in mol.properties.sites)
+            - min(x.coords.tolist()[2] for x in mol.properties.sites)
             + 2 * margin,
         ]
         structure = cls.from_pymatgen_structure(mol.get_boxed_structure(*box))
-        structure.pbc = [False, False, False]
+        structure.properties.pbc = [False, False, False]
 
         return structure
 
@@ -258,7 +207,7 @@ class StructureDataCore(BaseModel):
         # self.clear_kinds()
 
         inputs["sites"] = []
-        for site in struct.sites:
+        for site in struct.properties.sites:
 
             if "kind_name" in site.properties:
                 kind_name = site.properties["kind_name"]
@@ -294,10 +243,9 @@ class StructureDataCore(BaseModel):
             :return: The structure as a dictionary.
             :rtype: dict
             """
-            if isinstance(self, StructureData):
-                dict_repr = copy.deepcopy(self.base.attributes.all)
-            else:
-                dict_repr = copy.deepcopy(self._data)
+            
+            
+            dict_repr = copy.deepcopy(self.properties.dict())
                 
             if detect_kinds:
                 dict_repr["sites"] = self.get_kinds(ready_for_use=True)
@@ -312,7 +260,7 @@ class StructureDataCore(BaseModel):
 
         :return: a list of floats
         """
-        return np.array([getattr(this_site, property_name) for this_site in self.sites])
+        return np.array([getattr(this_site, property_name) for this_site in self.properties.sites])
 
     def get_property_names(self, domain=None):
         """get a list of properties
@@ -345,7 +293,7 @@ class StructureDataCore(BaseModel):
 
         :return: a float.
         """
-        return calc_cell_volume(self.cell)
+        return calc_cell_volume(self.properties.cell)
 
     def get_cif(self, converter="ase", store=False, **kwargs):
         """Creates :py:class:`aiida.orm.nodes.data.cif.CifData`.
@@ -422,7 +370,7 @@ class StructureDataCore(BaseModel):
             initial order in which the atoms were appended by the user is
             used to group and/or order the symbols in the formula
         """
-        symbol_list = [s.symbol for s in self.sites]
+        symbol_list = [s.symbol for s in self.properties.sites]
 
         return get_formula(symbol_list, mode=mode, separator=separator)
 
@@ -443,7 +391,7 @@ class StructureDataCore(BaseModel):
         import numpy as np
 
         symbols_list = [
-            self.get_kind(s.kind_name).get_symbols_string() for s in self.sites
+            self.get_kind(s.kind_name).get_symbols_string() for s in self.properties.sites
         ]
         symbols_set = set(symbols_list)
 
@@ -730,12 +678,12 @@ class StructureDataCore(BaseModel):
         super()._validate()
 
         try:
-            _get_valid_cell(self.cell)
+            _get_valid_cell(self.properties.cell)
         except ValueError as exc:
             raise ValidationError(f"Invalid cell: {exc}")
 
         try:
-            _get_valid_pbc(self.pbc)
+            _get_valid_pbc(self.properties.pbc)
         except ValueError as exc:
             raise ValidationError(f"Invalid periodic boundary conditions: {exc}")
 
@@ -758,7 +706,7 @@ class StructureDataCore(BaseModel):
 
         try:
             # This will try to create the sites objects
-            sites = self.sites
+            sites = self.properties.sites
         except ValueError as exc:
             raise ValidationError(f"Unable to validate the sites: {exc}")
 
@@ -781,10 +729,10 @@ class StructureDataCore(BaseModel):
                 "XSF for alloys or systems with vacancies not implemented."
             )
 
-        sites = self.sites
+        sites = self.properties.sites
 
         return_string = "CRYSTAL\nPRIMVEC 1\n"
-        for cell_vector in self.cell:
+        for cell_vector in self.properties.cell:
             return_string += " ".join([f"{i:18.10f}" for i in cell_vector])
             return_string += "\n"
         return_string += "PRIMCOORD 1\n"
@@ -882,8 +830,8 @@ class StructureDataCore(BaseModel):
                 "XYZ for alloys or systems with vacancies not implemented."
             )
 
-        sites = self.sites
-        cell = self.cell
+        sites = self.properties.sites
+        cell = self.properties.cell
 
         return_list = [f"{len(sites)}"]
         return_list.append(
@@ -897,9 +845,9 @@ class StructureDataCore(BaseModel):
                 cell[2][0],
                 cell[2][1],
                 cell[2][2],
-                self.pbc[0],
-                self.pbc[1],
-                self.pbc[2],
+                self.properties.pbc[0],
+                self.properties.pbc[1],
+                self.properties.pbc[2],
             )
         )
         for site in sites:
@@ -930,7 +878,7 @@ class StructureDataCore(BaseModel):
             raise TypeError("The data does not contain any XYZ data")
 
         self.clear_kinds()
-        self.pbc = (False, False, False)
+        self.properties.pbc = (False, False, False)
 
         for sym, position in atoms:
             self.append_atom(symbols=sym, position=position)
@@ -950,7 +898,7 @@ class StructureDataCore(BaseModel):
             )
 
         # Calculating the minimal cell:
-        positions = np.array([site.position for site in self.sites])
+        positions = np.array([site.position for site in self.properties.sites])
         position_min, _ = get_extremas_from_positions(positions)
 
         # Translate the structure to the origin, such that the minimal values in each dimension
@@ -985,10 +933,10 @@ class StructureDataCore(BaseModel):
         """
         from phonopy.structure.atoms import PhonopyAtoms
 
-        atoms = PhonopyAtoms(symbols=[_.kind_name for _ in self.sites])
+        atoms = PhonopyAtoms(symbols=[_.kind_name for _ in self.properties.sites])
         # Phonopy internally uses scaled positions, so you must store cell first!
-        atoms.set_cell(self.cell)
-        atoms.set_positions([_.position for _ in self.sites])
+        atoms.set_cell(self.properties.cell)
+        atoms.set_positions([_.position for _ in self.properties.sites])
 
         return atoms
 
@@ -1001,9 +949,9 @@ class StructureDataCore(BaseModel):
         """
         import ase
 
-        asecell = ase.Atoms(cell=self.cell, pbc=self.pbc)
+        asecell = ase.Atoms(cell=self.properties.cell, pbc=self.properties.pbc)
 
-        for site in self.sites:
+        for site in self.properties.sites:
             asecell.append(site.to_ase(kinds=site.kind_name))
 
         # asecell.set_initial_charges(self.get_site_property("charge"))
@@ -1021,7 +969,7 @@ class StructureDataCore(BaseModel):
         .. note:: Requires the pymatgen module (version >= 3.0.13, usage
             of earlier versions may cause errors).
         """
-        if any(self.pbc):
+        if any(self.properties.pbc):
             return self._get_object_pymatgen_structure(**kwargs)
 
         return self._get_object_pymatgen_molecule(**kwargs)
@@ -1056,7 +1004,7 @@ class StructureDataCore(BaseModel):
         species = []
         additional_kwargs = {}
 
-        lattice = Lattice(matrix=self.cell, pbc=self.pbc)
+        lattice = Lattice(matrix=self.properties.cell, pbc=self.properties.pbc)
 
         if kwargs.pop("add_spin", False) and any(
             n.endswith("1") or n.endswith("2") for n in self.get_kind_names()
@@ -1064,7 +1012,7 @@ class StructureDataCore(BaseModel):
             # case when spins are defined -> no partial occupancy allowed
 
             oxidation_state = 0  # now I always set the oxidation_state to zero
-            for site in self.sites:
+            for site in self.properties.sites:
                 kind = site.kind_name
                 if len(kind.symbols) != 1 or (
                     len(kind.weights) != 1 or sum(kind.weights) < 1.0
@@ -1092,7 +1040,7 @@ class StructureDataCore(BaseModel):
                 species.append(specie)
         else:
             # case when no spin are defined
-            for site in self.sites:
+            for site in self.properties.sites:
                 kind = site.kind_name
                 specie = Specie(
                     site.symbol,
@@ -1114,7 +1062,7 @@ class StructureDataCore(BaseModel):
                 f"Unrecognized parameters passed to pymatgen converter: {kwargs.keys()}"
             )
 
-        positions = [list(x.position) for x in self.sites]
+        positions = [list(x.position) for x in self.properties.sites]
 
         try:
             return Structure(
@@ -1149,14 +1097,14 @@ class StructureDataCore(BaseModel):
             )
 
         species = []
-        for site in self.sites:
+        for site in self.properties.sites:
             if hasattr(site, "weight"):
                 weight = site.weight
             else:
                 weight = 1
             species.append({site.symbol: weight})
 
-        positions = [list(site.position) for site in self.sites]
+        positions = [list(site.position) for site in self.properties.sites]
         return Molecule(species, positions)
 
     def _get_dimensionality(
@@ -1173,13 +1121,13 @@ class StructureDataCore(BaseModel):
 
         retdict = {}
 
-        pbc = np.array(self.pbc)
-        cell = np.array(self.cell)
+        pbc = np.array(self.properties.pbc)
+        cell = np.array(self.properties.cell)
 
         dim = len(pbc[pbc])
 
         retdict["dim"] = dim
-        retdict["label"] = StructureData._dimensionality_label[dim]
+        retdict["label"] = self._dimensionality_label[dim]
 
         if dim not in (0, 1, 2, 3):
             raise ValueError(f"Dimensionality {dim} must be one of 0, 1, 2, 3")
@@ -1210,7 +1158,7 @@ class StructureDataCore(BaseModel):
         # finite-d structures should have a cell with finite volume
         if dim["value"] == 0:
             raise ValueError(
-                f'Structure has periodicity {self.pbc} but {dim["dim"]}-d volume 0.'
+                f'Structure has periodicity {self.properties.pbc} but {dim["dim"]}-d volume 0.'
             )
 
         return
@@ -1299,7 +1247,7 @@ class StructureDataCore(BaseModel):
     def __len__(
         self,
     ):
-        return len(self.sites)
+        return len(self.properties.sites)
 
     def get_global_properties(self,):
         # for then easy query
@@ -1314,21 +1262,90 @@ class StructureDataCore(BaseModel):
         global_prop_dict['dimensionality'] = self._get_dimensionality()['dim']
         
         return global_prop_dict
+    
+    
+class SetterMixin:
+    
+    def set_pbc(self, value):
+        """Set the periodic boundary conditions."""
+        the_pbc = _get_valid_pbc(value)
+        self.properties.pbc = the_pbc
 
-class StructureData(Data, StructureDataCore):
-    
-    _mutable = False
-    
-    sites : t.List[SiteImmutable]
-    
-    def __init__(self, **data):
-        
-        StructureDataCore.__init__(self, **data)
-        Data.__init__(self)
+    def set_cell(self, value):
+        """Set the cell."""
+        the_cell = _get_valid_cell(value)
+        self.properties.cell = the_cell
 
-        for prop, value in self._data.items():
-            self.base.attributes.set(prop, value)
-            
-        global_properties = self.get_global_properties()
-        for prop, value in global_properties.items():
-            self.base.attributes.set(prop, value)
+    def set_cell_lengths(self, value):
+        raise NotImplementedError("Modification is not implemented yet")
+
+    def set_cell_angles(self, value):
+        raise NotImplementedError("Modification is not implemented yet")
+
+    def update_site(self, site_index, **kwargs):
+        """Update the site at the given index."""
+        self.properties.sites[site_index].update(**kwargs)
+
+    def set_charges(self, value):
+        if not len(self.properties.sites) == len(value):
+            raise ValueError(
+                "The number of charges must be equal to the number of sites"
+            )
+        else:
+            for site_index in range(len(value)):
+                self.update_site(site_index, charge=value[site_index])
+                
+    def set_magmoms(self, value):
+        if not len(self.properties.sites) == len(value):
+            raise ValueError(
+                "The number of magmom must be equal to the number of sites"
+            )
+        else:
+            for site_index in range(len(value)):
+                self.update_site(site_index, magmom=value[site_index])
+
+    def set_kind_names(self, value):
+        if not len(self.properties.sites) == len(value):
+            raise ValueError(
+                "The number of kind_names must be equal to the number of sites"
+            )
+        else:
+            for site_index in range(len(value)):
+                self.update_site(site_index, kind_name=value[site_index])
+
+    def add_atom(self, atom_info, index=-1):
+
+        new_site = Site.atom_to_site(**atom_info)
+        # I look for identical species only if the name is not specified
+        # _kinds = self.kinds
+
+        # check that the matrix is not singular. If it is, raise an error.
+        # check to be done in the core.
+        for site_position in self.get_site_property("position"):
+            if (
+                np.linalg.norm(np.array(new_site["position"]) - np.array(site_position))
+                < 1e-3
+            ):
+                raise ValueError(
+                    "You cannot define two different sites to be in the same position!"
+                )
+
+        if len(self.properties.sites) < index:
+            raise IndexError("insert_atom index out of range")
+        else:
+            self.properties.sites.append(new_site) if index == -1 else self._data[
+                "sites"
+            ].insert(index, new_site)
+
+    def pop_atom(self, index=None):
+        # If no index is provided, pop the last item
+        if index is None:
+            return self.properties.sites.pop()
+        # Check if the provided index is valid
+        elif 0 <= index < len(self.properties.sites):
+            return self.properties.sites.pop(index)
+        else:
+            raise IndexError("pop_atom index out of range")
+
+    def clear_sites(self,):
+        self.properties.sites = []

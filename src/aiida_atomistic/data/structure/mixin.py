@@ -125,7 +125,7 @@ class GetterMixin:
             - min(x.coords.tolist()[2] for x in mol.properties.sites)
             + 2 * margin,
         ]
-        structure = cls.from_pymatgen_structure(mol.get_boxed_structure(*box))
+        structure = cls._from_pymatgen_structure(mol.get_boxed_structure(*box))
         structure.properties.pbc = [False, False, False]
 
         return structure
@@ -1205,7 +1205,9 @@ class GetterMixin:
         # list for the value of the property for each generated kind.
 
         if isinstance(prop_array[0], np.ndarray):
-            indexes = np.array([np.linalg.norm(row-prop_array[0])/ thr for row in prop_array], dtype=int)
+            # here, to deal with set of 3D indexes and avoid to deal with directions of the vectors,
+            # I transform the set of indexes into string, so I can compared them in the np.where
+            indexes = np.array([np.array2string(np.array((row-prop_array[0])/ thr, dtype=int)) for row in prop_array])
         else:
             indexes = np.array((prop_array - np.min(prop_array)) / thr, dtype=int)
 

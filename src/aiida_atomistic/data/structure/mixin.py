@@ -619,7 +619,7 @@ class GetterMixin:
 
         return
 
-    def to_legacy(self):
+    def to_legacy(self) -> orm.StructureData:
 
         """
         Returns: orm.StructureData object, used for backward compatibility.

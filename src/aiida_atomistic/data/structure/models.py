@@ -69,6 +69,7 @@ class StructureBaseModel(BaseModel):
     class Config:
         from_attributes = True
         frozen = False
+        arbitrary_types_allowed=True
     
     @field_validator('pbc')
     @classmethod
@@ -121,23 +122,38 @@ class StructureBaseModel(BaseModel):
     
     @computed_field
     @property
-    def charges(self) -> t.List[float]:
-        return [site.charge for site in self.sites]
+    def charges(self) -> FrozenList[float]:
+        return FrozenList([site.charge for site in self.sites])
     
     @computed_field
     @property
-    def magmoms(self) -> t.List[t.List[float]]:
-        return [site.magmom for site in self.sites]
+    def magmoms(self) -> FrozenList[FrozenList[float]]:
+        return FrozenList([site.magmom for site in self.sites])
     
     @computed_field
     @property
-    def masses(self) -> t.List[float]:
-        return [site.mass for site in self.sites]
+    def masses(self) -> FrozenList[float]:
+        return FrozenList([site.mass for site in self.sites])
     
     @computed_field
     @property
-    def kinds(self) -> t.List[float]:
-        return [site.kind_name for site in self.sites]
+    def kinds(self) -> FrozenList[str]:
+        return FrozenList([site.kind_name for site in self.sites])
+    
+    @computed_field
+    @property
+    def symbols(self) -> FrozenList[str]:
+        return FrozenList([site.symbol for site in self.sites])
+    
+    @computed_field
+    @property
+    def positions(self) -> FrozenList[FrozenList[float]]:
+        return FrozenList([site.position for site in self.sites])
+    
+    @computed_field
+    @property
+    def formula(self) -> str:
+        return get_formula(self.symbols)
     
 class MutableStructureModel(StructureBaseModel):
     
@@ -154,6 +170,7 @@ class ImmutableStructureModel(StructureBaseModel):
     class Config:
         from_attributes = True
         frozen = True
+        arbitrary_types_allowed=True
         
     @model_validator(mode='before')
     def check_minimal_requirements(cls, data):

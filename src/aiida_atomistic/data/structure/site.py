@@ -65,13 +65,15 @@ class SiteCore(BaseModel):
             return freeze_nested(v)
         else:
             return v
-        
+
     @model_validator(mode='before')
     def check_minimal_requirements(cls, data):
+        if "symbol" not in data and cls._mutable.default:
+            data["symbol"] = "H"
         if "mass" not in data:
             data["mass"] = _atomic_masses[data["symbol"]]
         elif not data["mass"]:
-            data["mass"] = _atomic_masses[data["symbol"]]
+            data["mass"] =  _atomic_masses[data["symbol"]]
         elif data["mass"]<=0:
             raise ValueError("The mass of an atom must be positive")
         
@@ -79,17 +81,17 @@ class SiteCore(BaseModel):
             data["kind_name"] = data["symbol"]
             
         return data
-
-
+    
+    
     @classmethod
     def atom_to_site(
         cls,
         aseatom: t.Optional[ase.Atom] = None,
         position: t.Optional[list] = None,
-        symbol: t.Optional[t.Union[_valid_symbols]] = None,
+        symbol: t.Optional[t.Literal[_valid_symbols]] = None,
         kind_name: t.Optional[str] = None,
         charge: t.Optional[float] = None,
-        magmom: t.Optional[list] = None,
+        magmom: t.Optional[t.List[float]] = None,
         mass: t.Optional[float] = None,
         ) -> dict: 
         """Convert an ASE atom or dictionary to a dictionary object which the correct format to describe a Site."""
@@ -169,8 +171,10 @@ class SiteCore(BaseModel):
 
         # we should put a small routine to do tags. or instead of kinds, provide the tag (or tag mapping).
         tag = None
+        atom_dict = self.model_dump()
+        atom_dict.pop("kind_name",None)
         aseatom = ase.Atom(
-            **self.model_dump()
+            **atom_dict
         )
 
         tag = self.kind_name.replace(self.symbol, "")
@@ -193,8 +197,8 @@ class SiteMutable(SiteCore):
     
     _mutable = True
     
-    symbol: str
-    kind_name: t.Optional[str] = None
+    symbol: t.Literal[_valid_symbols]
+    kind_name: t.Optional[str]
     position: t.Optional[t.List[float]] = None
     mass: t.Optional[float] = None
     charge: t.Optional[float] = 0
@@ -203,12 +207,13 @@ class SiteMutable(SiteCore):
     class Config:
         from_attributes = True
         frozen= False
+        arbitrary_types_allowed=True
     
 class SiteImmutable(SiteCore):
     
     _mutable = False
     
-    symbol: str
+    symbol: t.Literal[_valid_symbols]
     kind_name: t.Optional[str]
     position: t.List[float] = Field(min_length=3, max_length=3)
     mass: t.Optional[float] = Field(gt=0)
@@ -218,3 +223,4 @@ class SiteImmutable(SiteCore):
     class Config:
         from_attributes = True
         frozen= True
+        arbitrary_types_allowed=True

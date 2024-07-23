@@ -1,11 +1,7 @@
-[![Build Status][ci-badge]][ci-link]
-[![Coverage Status][cov-badge]][cov-link]
-[![Docs status][docs-badge]][docs-link]
-[![PyPI version][pypi-badge]][pypi-link]
+# `aiida-atomistic` package 
 
-# aiida-atomistic
 
-AiiDA plugin which contains data and methods for atomistic simulations.
+AiiDA plugin which contains data and methods for atomistic simulations within AiiDA.
 
 
 ## Installation
@@ -56,13 +52,3 @@ MIT
 ## Contact
 
 mikibonacci@psi.ch
-
-
-[ci-badge]: https://github.com/aiidateam/aiida-atomistic/workflows/ci/badge.svg?branch=master
-[ci-link]: https://github.com/aiidateam/aiida-atomistic/actions
-[cov-badge]: https://coveralls.io/repos/github/aiidateam/aiida-atomistic/badge.svg?branch=master
-[cov-link]: https://coveralls.io/github/aiidateam/aiida-atomistic?branch=master
-[docs-badge]: https://readthedocs.org/projects/aiida-atomistic/badge
-[docs-link]: http://aiida-atomistic.readthedocs.io/
-[pypi-badge]: https://badge.fury.io/py/aiida-atomistic.svg
-[pypi-link]: https://badge.fury.io/py/aiida-atomistic

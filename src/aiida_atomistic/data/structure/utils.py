@@ -90,17 +90,17 @@ def _get_valid_pbc(inputpbc):
     :raise ValueError: if the format is not valid.
     """
     if isinstance(inputpbc, bool):
-        the_pbc = (inputpbc, inputpbc, inputpbc)
+        the_pbc = [inputpbc, inputpbc, inputpbc]
     elif hasattr(inputpbc, "__iter__"):
         # To manage numpy lists of bools, whose elements are of type numpy.bool_
         # and for which isinstance(i,bool) return False...
         if hasattr(inputpbc, "tolist"):
-            the_value = tuple(i for i in inputpbc.tolist())
+            the_value = list(i for i in inputpbc.tolist())
         else:
             the_value = inputpbc
         if all(isinstance(i, bool) for i in the_value):
             if len(the_value) == 3:
-                the_pbc = tuple(i for i in the_value)
+                the_pbc = list(i for i in the_value)
             elif len(the_value) == 1:
                 the_pbc = (the_value[0], the_value[0], the_value[0])
             else:
@@ -112,20 +112,17 @@ def _get_valid_pbc(inputpbc):
 
     return the_pbc
 
-def _get_valid_sites(input_sites):
-    from .site import Site
+def _check_valid_sites(input_sites):
     
-    the_sites = []
-    for site in input_sites:
-        if not isinstance(site, dict):
-            raise ValueError("Each site must be a dictionary")
-        for prop in ['symbol','position']:
-            if prop not in site:
-                raise ValueError(f"Each site must have a {prop}")
+    num_sites = len(input_sites)
+    for i in range(num_sites):
+        for j in range(num_sites):
+            if j == i: 
+                continue
+            if np.allclose(input_sites[i]["position"], input_sites[j]["position"], atol=1e-3):
+                raise ValueError(f"Sites {i+1} and {j+1} cannot have the same position")
         
-        the_sites.append(Site.atom_to_site(**site))
-    
-    return the_sites
+    return 
 
 
 def has_ase():

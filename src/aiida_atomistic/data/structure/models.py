@@ -46,14 +46,15 @@ from aiida_atomistic.data.structure.utils import (
     ObservedArray,
     FrozenList,
     freeze_nested,
-    get_dimensionality
+    get_dimensionality,
+    _check_valid_sites
 )
 
 _MASS_THRESHOLD = 1.0e-3
 # Threshold to check if the sum is one or not
 _SUM_THRESHOLD = 1.0e-6
 # Default cell
-_DEFAULT_CELL = ((0, 0, 0),) * 3
+_DEFAULT_CELL = [[0.0, 0.0, 0.0]] * 3
 
 _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
@@ -61,9 +62,9 @@ _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
 class StructureBaseModel(BaseModel):
     
-    #sites: t.List[SiteMutable] | t.Any
-    pbc: t.List[bool] | t.Any
-    cell: t.List[t.List[float]] | t.Any
+    #sites: t.Optional[t.List[SiteMutable]]
+    pbc: t.Optional[t.List[bool]] = Field(min_length=3, max_length=3, default_factory=lambda: [True, True, True])
+    cell: t.Optional[t.List[t.List[float]]] = Field(default_factory=lambda: _DEFAULT_CELL)
     
     class Config:
         from_attributes = True
@@ -87,7 +88,7 @@ class StructureBaseModel(BaseModel):
                 raise ValueError("pbc must be a list of length 3")
             return v
         
-        if cls._mutable.default:
+        if not cls._mutable.default:
             return freeze_nested(v)
         
         return v
@@ -128,11 +129,21 @@ class StructureBaseModel(BaseModel):
     def magmoms(self) -> t.List[t.List[float]]:
         return [site.magmom for site in self.sites]
     
+    @computed_field
+    @property
+    def masses(self) -> t.List[float]:
+        return [site.mass for site in self.sites]
+    
+    @computed_field
+    @property
+    def kinds(self) -> t.List[float]:
+        return [site.kind_name for site in self.sites]
+    
 class MutableStructureModel(StructureBaseModel):
     
     _mutable = True
     
-    sites : t.List[SiteMutable]
+    sites : t.Optional[t.List[SiteMutable]]= Field(default_factory=list)
     
 class ImmutableStructureModel(StructureBaseModel):
     
@@ -148,6 +159,8 @@ class ImmutableStructureModel(StructureBaseModel):
     def check_minimal_requirements(cls, data):
         if not data.get("sites", None):
             raise ValueError("The structure must contain at least one site")
+        else:
+            _check_valid_sites(data["sites"])
         if not data.get("cell", None):
             raise ValueError("The structure must contain a cell")
         if not data.get("pbc", None):    

@@ -67,7 +67,7 @@ class StructureData(Data, GetterMixin):
         self._properties = ImmutableStructureModel(**kwargs)
         super().__init__()
         
-        for prop, value in self.properties.dict().items():
+        for prop, value in self.to_dict().items():
             self.base.attributes.set(prop, value)
     
     @property 
@@ -78,7 +78,7 @@ class StructureData(Data, GetterMixin):
             return self._properties
         
     def to_mutable(self):
-        return StructureDataMutable(**self.properties.dict())
+        return StructureDataMutable(**self.to_dict())
         
 class StructureDataMutable(GetterMixin, SetterMixin):
         
@@ -91,4 +91,4 @@ class StructureDataMutable(GetterMixin, SetterMixin):
         return self._properties
     
     def to_immutable(self):
-        return StructureData(**self.properties.dict())
+        return StructureData(**self.to_dict())

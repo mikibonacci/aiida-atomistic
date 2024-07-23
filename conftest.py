@@ -39,9 +39,61 @@ def example_structure_dict():
     Return the dictionary of properties as to be used in the standards tests.
     """
     structure_dict = {
-        "pbc": (True, True, True),
+        "pbc": [True, True, True],
         "cell": [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]],
         "sites": [
+            {
+                "symbol": "Cu",
+                "kind_name": "Cu2",
+                "position": [0.0, 0.0, 0.0],
+                "mass": 63.546,
+                "charge": 1.0,
+                "magmom": [0,0,0],
+            }
+        ],
+    }
+
+    return structure_dict
+
+@pytest.fixture
+def example_nomass_structure_dict():
+    """
+    Return the dictionary of properties as to be used in the standards tests.
+    """
+    structure_dict = {
+        "pbc": [True, True, True],
+        "cell": [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]],
+        "sites": [
+            {
+                "symbol": "Cu",
+                "kind_name": "Cu2",
+                "position": [0.0, 0.0, 0.0],
+                #"mass": 63.546,
+                "charge": 1.0,
+                "magmom": [0,0,0],
+            }
+        ],
+    }
+
+    return structure_dict
+
+@pytest.fixture
+def example_wrong_structure_dict():
+    """
+    Return the dictionary of properties as to be used in the standards tests.
+    """
+    structure_dict = {
+        "pbc": [True, True, True],
+        "cell": [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]],
+        "sites": [
+            {
+                "symbol": "Cu",
+                "kind_name": "Cu2",
+                "position": [0.0, 0.0, 0.0],
+                "mass": 63.546,
+                "charge": 1.0,
+                "magmom": [0,0,0],
+            },
             {
                 "symbol": "Cu",
                 "kind_name": "Cu2",

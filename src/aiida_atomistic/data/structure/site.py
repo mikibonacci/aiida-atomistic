@@ -16,11 +16,7 @@ except ImportError:
 from aiida.common.constants import elements
 
 from aiida_atomistic.data.structure.utils import (
-    _create_weights_tuple,
     create_automatic_kind_name,
-    validate_weights_tuple,
-    ObservedArray,
-    FrozenList,
     freeze_nested,
 )
 
@@ -33,7 +29,7 @@ _DEFAULT_CELL = ((0, 0, 0), (0, 0, 0), (0, 0, 0))
 
 _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
-_atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
+_atomic_numbers = {atom["symbol"]: num for num, atom in elements.items()}
 
 _default_values = {
     "mass": _atomic_masses,
@@ -46,11 +42,11 @@ _default_values = {
 class SiteCore(BaseModel):
                 
     symbol: t.Literal[_valid_symbols]
-    kind_name: str | t.Any = None
-    position: list | t.Any = Field(min_length=3, max_length=3)
-    mass: float | t.Any 
-    charge: float | t.Any = 0
-    magmom: t.List[float] | t.Any = Field(min_length=3, max_length=3, default=[0.0, 0.0, 0.0])
+    kind_name: t.Optional[str]
+    position: t.Optional[list] = Field(min_length=3, max_length=3)
+    mass: t.Optional[float]
+    charge: t.Optional[float] = Field(default=0)
+    magmom: t.Optional[t.List[float]] = Field(min_length=3, max_length=3, default=[0.0, 0.0, 0.0])
     
     class Config:
         from_attributes = True
@@ -72,13 +68,22 @@ class SiteCore(BaseModel):
         
     @model_validator(mode='before')
     def check_minimal_requirements(cls, data):
-        if not data.get("mass", None):
+        if "mass" not in data:
             data["mass"] = _atomic_masses[data["symbol"]]
+        elif not data["mass"]:
+            data["mass"] = _atomic_masses[data["symbol"]]
+        elif data["mass"]<=0:
+            raise ValueError("The mass of an atom must be positive")
+        
+        if "kind_name" not in data:
+            data["kind_name"] = data["symbol"]
+            
         return data
 
 
-    @staticmethod
+    @classmethod
     def atom_to_site(
+        cls,
         aseatom: t.Optional[ase.Atom] = None,
         position: t.Optional[list] = None,
         symbol: t.Optional[t.Union[_valid_symbols]] = None,
@@ -165,7 +170,7 @@ class SiteCore(BaseModel):
         # we should put a small routine to do tags. or instead of kinds, provide the tag (or tag mapping).
         tag = None
         aseatom = ase.Atom(
-            **self.dict()
+            **self.model_dump()
         )
 
         tag = self.kind_name.replace(self.symbol, "")
@@ -189,11 +194,11 @@ class SiteMutable(SiteCore):
     _mutable = True
     
     symbol: str
-    kind_name: str | t.Any = None
-    position: list | t.Any = None
-    mass: float | t.Any = None
-    charge: float | t.Any = 0
-    magmom: t.List[float] | t.Any = Field(min_length=3, max_length=3, default=[0.0, 0.0, 0.0])
+    kind_name: t.Optional[str] = None
+    position: t.Optional[t.List[float]] = None
+    mass: t.Optional[float] = None
+    charge: t.Optional[float] = 0
+    magmom: t.Optional[t.List[float]] = Field(min_length=3, max_length=3, default=[0.0, 0.0, 0.0])
     
     class Config:
         from_attributes = True
@@ -204,11 +209,11 @@ class SiteImmutable(SiteCore):
     _mutable = False
     
     symbol: str
-    kind_name: str | t.Any = None
-    position: list
-    mass: float | t.Any = None
-    charge: float | t.Any = 0
-    magmom: t.List[float] | t.Any = Field(min_length=3, max_length=3, default=[0.0, 0.0, 0.0])
+    kind_name: t.Optional[str]
+    position: t.List[float] = Field(min_length=3, max_length=3)
+    mass: t.Optional[float] = Field(gt=0)
+    charge: t.Optional[float] = Field(default=0)
+    magmom: t.Optional[t.List[float]] = Field(min_length=3, max_length=3, default=[0.0, 0.0, 0.0])
     
     class Config:
         from_attributes = True

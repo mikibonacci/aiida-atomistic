@@ -1,14 +1,10 @@
 import copy
-import functools
 import json
 import typing as t
-from pydantic import BaseModel, Field, field_validator, PrivateAttr
 import numpy as np
-import warnings
 
 from aiida import orm
 from aiida.common.constants import elements
-from aiida.orm.nodes.data import Data
 
 from aiida_atomistic.data.structure.site import SiteMutable as Site
 
@@ -43,9 +39,6 @@ from aiida_atomistic.data.structure.utils import (
     calc_cell_volume,
     create_automatic_kind_name,
     get_formula,
-    ObservedArray,
-    FrozenList,
-    freeze_nested,
 )
 
 _MASS_THRESHOLD = 1.0e-3
@@ -76,7 +69,7 @@ class GetterMixin:
         # self.clear_kinds()  # This also calls clear_sites
         for atom in aseatoms:
             new_site = Site.atom_to_site(aseatom=atom)
-            data["sites"].append(new_site)
+            data["sites"].append(new_site.model_dump())
 
         structure = cls(**data)
 
@@ -207,7 +200,8 @@ class GetterMixin:
         # self.clear_kinds()
 
         inputs["sites"] = []
-        for site in struct.properties.sites:
+        sites_collection = struct.properties["sites"] if "sites" in struct.properties.keys() else struct.sites
+        for site in sites_collection:
 
             if "kind_name" in site.properties:
                 kind_name = site.properties["kind_name"]
@@ -219,7 +213,7 @@ class GetterMixin:
                 "weights": site.species.weight,
                 "position": site.coords.tolist(),
                 "charge": site.properties.get("charge", 0.0),
-                'magmom': site.properties.get("magmom", [0.0, 0.0, 0.0]),
+                'magmom': site.properties.get("magmom").moment if "magmom" in site.properties.keys() else [0,0,0]
             }
 
             if kind_name is not None:
@@ -245,7 +239,7 @@ class GetterMixin:
             """
             
             
-            dict_repr = copy.deepcopy(self.properties.dict())
+            dict_repr = copy.deepcopy(self.properties.model_dump())
                 
             if detect_kinds:
                 dict_repr["sites"] = self.get_kinds(ready_to_use=True)
@@ -490,7 +484,7 @@ class GetterMixin:
         # Step 1:
         kind_properties = []
         kinds_dictionary = {"kind_name": {}}
-        for single_property in self.properties.sites[0].dict().keys():
+        for single_property in self.properties.sites[0].model_dump().keys():
             if single_property not in ["symbol", "position", "kind_name",] + exclude:
                 # prop = self.get_site_property(single_property)
                 thr = custom_thr.get(
@@ -881,7 +875,7 @@ class GetterMixin:
         self.properties.pbc = (False, False, False)
 
         for sym, position in atoms:
-            self.append_atom(symbols=sym, position=position)
+            self.add_atom(symbol=sym, position=position)
 
     def _adjust_default_cell(
         self, vacuum_factor=1.0, vacuum_addition=10.0, pbc=(False, False, False)
@@ -1234,7 +1228,7 @@ class GetterMixin:
     def __getitem__(self, index):
         "ENABLE SLICING. Return a sliced StructureData."
         # Handle slicing
-        sliced_structure_dict = self.properties.dict()
+        sliced_structure_dict = self.to_dict()
         if isinstance(index, slice):
             sliced_structure_dict["sites"] = sliced_structure_dict["sites"][index]
             return self.__class__(**sliced_structure_dict)
@@ -1247,22 +1241,7 @@ class GetterMixin:
     def __len__(
         self,
     ):
-        return len(self.properties.sites)
-
-    def get_global_properties(self,):
-        # for then easy query
-        global_prop_dict = {}
-        for prop in self.get_property_names(domain="site"):
-            name = prop + "s"
-            name = name.replace("sss", "sses")
-            global_prop_dict[name] = self.get_site_property(prop)
-            #setattr(self, prop+'s', property(lambda self: getattr(self, prop)))
-            
-        global_prop_dict['volume'] = self.get_cell_volume()
-        global_prop_dict['dimensionality'] = self._get_dimensionality()['dim']
-        
-        return global_prop_dict
-    
+        return len(self.properties.sites)    
     
 class SetterMixin:
     
@@ -1323,7 +1302,7 @@ class SetterMixin:
         # check to be done in the core.
         for site_position in self.get_site_property("position"):
             if (
-                np.linalg.norm(np.array(new_site["position"]) - np.array(site_position))
+                np.linalg.norm(np.array(new_site.position) - np.array(site_position))
                 < 1e-3
             ):
                 raise ValueError(

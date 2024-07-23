@@ -2,9 +2,11 @@ from ase.build import bulk
 import numpy as np
 import pytest
 
-from aiida_atomistic.data.structure.core import StructureData
-from aiida_atomistic.data.structure.mutable import StructureDataMutable
-from aiida_atomistic.data.structure.site import Site
+from aiida_atomistic.data.structure.structure import StructureData, StructureDataMutable
+from aiida_atomistic.data.structure.site import SiteMutable, SiteImmutable
+
+from pydantic import ValidationError
+
 
 """
 General tests for the atomistic StructureData.
@@ -16,12 +18,12 @@ The comments the test categories should be replaced by the pytest.mark in the fu
 
 def test_structure_initialization(example_structure_dict):
     """
-    Testing that the StructureData is initialized correctly when:
+    Testing that the StructureDataMutable is initialized correctly when:
     (1) nothing is provided;
     (2) properties are provided.
     """
 
-    # (1)
+    # (1.1) Empty StructureDataMutable
     structure = StructureDataMutable()
 
     assert isinstance(
@@ -29,6 +31,10 @@ def test_structure_initialization(example_structure_dict):
     ), f"Expected type for empty StructureDataMutable: {type(StructureDataMutable)}, \
                                             received: {type(structure)}"
 
+    # (1.2) Empty StructureData: cannot be done
+    with pytest.raises(ValidationError):
+        structure = StructureData()
+    
     # (2)
     for structure_type in [StructureDataMutable, StructureData]:
         structure = structure_type(**example_structure_dict)
@@ -41,22 +47,7 @@ def test_structure_initialization(example_structure_dict):
 
 # StructureData methods:
 
-
-def test_valid_and_stored_properties(supported_properties, example_structure_dict):
-    """
-    Testing that the list of valid and stored properties are correct.
-    I compare the sets as we don't care about ordering, which will make the test fail even if the
-    elements in the two lists are the same.
-
-    NB: if pbc and cell are  not provided, this test will except, as it will then define the default pbc and cell.
-    """
-    for structure_type in [StructureDataMutable, StructureData]:
-        structure = structure_type(**example_structure_dict)
-
-        assert set(structure.get_property_names()) == set(supported_properties)
-
-
-def test_to_dict_method(example_structure_dict):
+def test_dict(example_structure_dict):
     """
     Testing that the StructureData.to_dict() method works properly.
 
@@ -67,7 +58,7 @@ def test_to_dict_method(example_structure_dict):
 
         returned_dict = structure.to_dict()
 
-        for derived_property in structure.get_global_properties().keys():
+        for derived_property in structure.properties.model_computed_fields.keys():
             returned_dict.pop(derived_property, None)
         
         assert (
@@ -78,68 +69,64 @@ def test_to_dict_method(example_structure_dict):
 
 def test_structure_ASE_initialization():
     """
-    Testing that the StructureData is initialized correctly when ASE Atoms object is provided.
+    Testing that the StructureData/StructureDataMutable is initialized correctly when ASE Atoms object is provided.
     """
 
     atoms = bulk("Cu", "fcc", a=3.6)
-    # test StructureData
-    structure = StructureData.from_ase(atoms)
+    for structure_type in [StructureDataMutable, StructureData]:
+        structure = structure_type.from_ase(atoms)
 
-    assert isinstance(structure, StructureData)
+        assert isinstance(structure, structure_type)
+        
+    atoms = bulk('Cu', 'fcc', a=3.6)
+    atoms.set_initial_charges([1,])
+    atoms.set_initial_magnetic_moments([[0,0,1]])
+    for structure_type in [StructureDataMutable, StructureData]:
+        structure = structure_type.from_ase(atoms)
 
+        assert structure.properties.charges == [1]
+        assert structure.properties.magmoms == [[0,0,1]]
+    
 
-def test_to_be_factorized():
+def test_mutability():
     atoms = bulk("Cu", "fcc", a=3.6)
     # test StructureData
     s = StructureData.from_ase(atoms)
 
-    assert isinstance(s._data["pbc"], tuple)
-    assert isinstance(s.pbc, np.ndarray)
-    assert any(s.pbc)
+    assert isinstance(s.properties.pbc, list)
+    assert any(s.properties.pbc)
     assert np.array_equal(
-        s.cell, np.array([[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]])
+        s.properties.cell, np.array([[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]])
     )
-    assert isinstance(s.sites[0], Site)
+    assert isinstance(s.properties.sites[0], SiteImmutable)
 
     with pytest.raises(ValueError):
-        s.pbc[0] = False
+        s.properties.pbc[0] = False
 
-    with pytest.raises(AttributeError):
-        s.pbc = [True, False, True]
+    with pytest.raises(ValidationError):
+        s.properties.pbc = [True, False, True]
 
     # test StructureDataMutable
     m = StructureDataMutable.from_ase(atoms)
 
-    assert isinstance(m.pbc, np.ndarray)
-    assert any(m.pbc)
+    assert isinstance(m.properties.pbc, list)
+    assert any(m.properties.pbc)
     assert np.array_equal(
-        m.cell, np.array([[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]])
-    )
-    assert isinstance(m.sites[0], Site)
+        m.properties.cell, [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]])
+    assert isinstance(m.properties.sites[0], SiteMutable)
 
     # test StructureDataMutable mutability
 
-    assert np.array_equal(m.pbc,np.array([True, True, True]))
-    
-    with pytest.raises(ValueError):
-        m.pbc[0] = 3
-
-    with pytest.raises(AttributeError):
-        m.pbc = [False, 4, False]
-    
-    with pytest.raises(ValueError):
-        m.set_pbc([False, "True", False])  
+    assert np.array_equal(m.properties.pbc,np.array([True, True, True]))
     
     m.set_pbc([False, False, False])
-    assert not any(m.pbc)
+    assert not any(m.properties.pbc)
 
     # check StructureData and StructureDataMutable give the same properties.
     # in this way I check that it works well.
     m.set_pbc([True, True, True])
     
     returned_dict = s.to_dict()
-    for derived_property in s.get_global_properties().keys():
-            returned_dict.pop(derived_property, None)
             
     assert returned_dict == m.to_dict()
 
@@ -158,9 +145,45 @@ def test_to_be_factorized():
     
     assert np.array_equal(m.get_charges(), np.array([0,0]))
 
+def test_computed_fields(example_structure_dict):
+    for structure_type in [StructureDataMutable, StructureData]:
+        structure = structure_type(**example_structure_dict)
+
+        assert structure.properties.magmoms == [[0,0,0]]
+        assert structure.properties.charges == [1.0]
+        assert structure.properties.cell_volume == 11.664000000000001
+        assert structure.properties.dimensionality == {'dim': 3, 'label': 'volume', 'value': 11.664000000000001}
+        
+        if isinstance(structure, StructureDataMutable):
+            structure.add_atom(
+            {
+                "symbol": "Cu",
+                "mass": 63.546,
+                "kind_name": "Cu",
+                "position": [1.0, 0.0, -1.0],
+                "charge": 0.0,
+                "magmom": [0,0,0],
+            },
+            index=0,
+            )
+            assert structure.properties.charges == [0.0, 1.0]
+
+            
+def test_model_validator(example_wrong_structure_dict,example_nomass_structure_dict):
+    for structure_type in [StructureDataMutable, StructureData]:
+        if isinstance(structure_type, StructureData):
+            with pytest.raises(ValidationError):
+                structure = structure_type(**example_wrong_structure_dict)
+        elif isinstance(structure_type, StructureDataMutable):
+            structure = structure_type(**example_wrong_structure_dict)
+        
+        structure = structure_type(**example_nomass_structure_dict)
+        assert structure.properties.masses == [63.546]
+        assert structure.properties.sites[0].mass == 63.546
+    
+
 
 ## Test the get_kinds() method.
-
 
 @pytest.mark.skip
 @pytest.fixture

@@ -288,7 +288,7 @@ class GetterMixin:
         Args:
             domain (str, optional): restrict the domain of the printed property names. Defaults to None, but can be also 'site'.
         """
-        pass
+        return {'direct': list(self.properties.model_fields.keys()), 'computed': list(self.properties.model_computed_fields.keys()), 'site':list(Site.model_fields.keys())}
 
 
     def get_charges(self,):

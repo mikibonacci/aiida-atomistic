@@ -24,7 +24,8 @@ requires-python = ">=3.7"
 dependencies = [
     "aiida-core>=2.0,<3",
     "voluptuous",
-    "ase"
+    "ase",
+    "pymatgen>=2022.1.20",
 ]
 
 [project.urls]

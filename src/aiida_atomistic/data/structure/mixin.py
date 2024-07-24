@@ -54,7 +54,10 @@ _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 class GetterMixin:
     
     @classmethod
-    def from_ase(cls, aseatoms: ASE_ATOMS_TYPE):
+    def from_ase(
+        cls, 
+        aseatoms: ASE_ATOMS_TYPE, 
+        detect_kinds: bool = False):
         """Load the structure from a ASE object"""
 
         if not has_ase:
@@ -72,21 +75,32 @@ class GetterMixin:
             data["sites"].append(new_site.model_dump())
 
         structure = cls(**data)
+        
+        if detect_kinds:
+            data["sites"] = structure.get_kinds(ready_to_use=True)
 
+        structure = cls(**data)
+        
         return structure
 
     @classmethod
-    def from_file(cls, filename, format="cif", **kwargs):
+    def from_file(
+        cls, 
+        filename, 
+        format="cif", 
+        detect_kinds: bool = False, 
+        **kwargs):
         """Load the structure from a file"""
 
         ase_read = ase_io.read(filename, format=format, **kwargs)
 
-        return cls.from_ase(aseatoms=ase_read)
+        return cls.from_ase(aseatoms=ase_read, detect_kinds=detect_kinds)
 
     @classmethod
     def from_pymatgen(
         cls,
         pymatgen_obj: t.Union[PYMATGEN_MOLECULE, PYMATGEN_STRUCTURE],
+        detect_kinds: bool = False,
         **kwargs,
     ):
         """Load the structure from a pymatgen object.
@@ -98,14 +112,19 @@ class GetterMixin:
             raise ImportError("The pymatgen package cannot be imported.")
 
         if isinstance(pymatgen_obj, PYMATGEN_MOLECULE):
-            structure = cls._from_pymatgen_molecule(pymatgen_obj)
+            structure = cls._from_pymatgen_molecule(pymatgen_obj, detect_kinds=detect_kinds)
         else:
-            structure = cls._from_pymatgen_structure(pymatgen_obj)
+            structure = cls._from_pymatgen_structure(pymatgen_obj, detect_kinds=detect_kinds)
 
         return structure
 
     @classmethod
-    def _from_pymatgen_molecule(cls, mol: PYMATGEN_MOLECULE, margin=5):
+    def _from_pymatgen_molecule(
+        cls, 
+        mol: PYMATGEN_MOLECULE, 
+        margin=5,
+        detect_kinds: bool = False,
+        ):
         """Load the structure from a pymatgen Molecule object.
 
         :param margin: the margin to be added in all directions of the
@@ -125,13 +144,17 @@ class GetterMixin:
             - min(x.coords.tolist()[2] for x in mol.properties.sites)
             + 2 * margin,
         ]
-        structure = cls._from_pymatgen_structure(mol.get_boxed_structure(*box))
+        structure = cls._from_pymatgen_structure(mol.get_boxed_structure(*box), detect_kinds=detect_kinds)
         structure.properties.pbc = [False, False, False]
 
         return structure
 
     @classmethod
-    def _from_pymatgen_structure(cls, struct: PYMATGEN_STRUCTURE):
+    def _from_pymatgen_structure(
+        cls, 
+        struct: PYMATGEN_STRUCTURE,
+        detect_kinds: bool = False,
+        ):
         """Load the structure from a pymatgen Structure object.
 
         .. note:: periodic boundary conditions are set to True in all
@@ -223,6 +246,11 @@ class GetterMixin:
 
         structure = cls(**inputs)
 
+        if detect_kinds:
+                inputs["sites"] = structure.get_kinds(ready_to_use=True)
+        
+        structure = cls(**inputs)
+        
         return structure
 
     def to_dict(
@@ -237,8 +265,6 @@ class GetterMixin:
             :return: The structure as a dictionary.
             :rtype: dict
             """
-            
-            
             dict_repr = copy.deepcopy(self.properties.model_dump())
                 
             if detect_kinds:
@@ -1048,7 +1074,9 @@ class GetterMixin:
             # add "kind_name" as a properties to each site, whenever
             # the kind_name cannot be automatically obtained from the symbols
             additional_kwargs["site_properties"] = {
-                "kind_name": self.get_site_property("kind_name")
+                "kind_name": self.properties.kinds,
+                "charge": self.properties.charges,
+                "magmom": self.properties.magmoms
             }
 
         if kwargs:
@@ -1099,7 +1127,16 @@ class GetterMixin:
             species.append({site.symbol: weight})
 
         positions = [list(site.position) for site in self.properties.sites]
-        return Molecule(species, positions)
+        mol =  Molecule(species, positions)
+        
+        additional_kwargs["site_properties"] = {
+                "kind_name": self.properties.kinds,
+                "charge": self.properties.charges,
+                "magmom": self.properties.magmoms
+            }
+        
+        for prop,value in additional_kwargs.items():
+            mol.add_site_property(prop, value)
 
     def _get_dimensionality(
         self,

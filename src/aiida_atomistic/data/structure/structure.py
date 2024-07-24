@@ -77,8 +77,8 @@ class StructureData(Data, GetterMixin):
         else:
             return self._properties
         
-    def to_mutable(self):
-        return StructureDataMutable(**self.to_dict())
+    def to_mutable(self, detect_kinds: bool = False):
+        return StructureDataMutable(**self.to_dict(detect_kinds=detect_kinds))
         
 class StructureDataMutable(GetterMixin, SetterMixin):
         
@@ -90,5 +90,5 @@ class StructureDataMutable(GetterMixin, SetterMixin):
     def properties(self):
         return self._properties
     
-    def to_immutable(self):
-        return StructureData(**self.to_dict())
+    def to_immutable(self, detect_kinds: bool = False):
+        return StructureData(**self.to_dict(detect_kinds=detect_kinds))

@@ -87,6 +87,24 @@ def test_structure_ASE_initialization():
         assert structure.properties.charges == [1]
         assert structure.properties.magmoms == [[0,0,1]]
     
+def test_structure_Pymatgen_initialization():
+    """
+    Testing that the StructureData/StructureDataMutable is initialized correctly when Pymatgen object is provided.
+    """
+
+    coords = [[0, 0, 0], [0.75,0.5,0.75]]
+    lattice = Lattice.from_parameters(a=3.84, b=3.84, c=3.84, alpha=120,
+                                beta=90, gamma=60)
+    
+    for structure_type in [StructureDataMutable, StructureData]:
+        struct = structure_type(lattice, ["Si", "Si"], coords)
+
+        struct.sites[0].properties["charge"]=1
+
+        mutable_structure = StructureDataMutable.from_pymatgen(struct)
+    
+    assert structure.properties.charges == [1, 0]
+    assert structure.properties.magmoms == [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 
 def test_mutability():
     atoms = bulk("Cu", "fcc", a=3.6)
@@ -217,52 +235,16 @@ def kinds_properties():
 
     return properties
 
-
-@pytest.mark.skip
-def test_get_kinds(example_properties, kinds_properties):
+def test_get_kinds(example_structure_dict_for_kinds):
 
     # (1) trivial system, defaults thr
-    structure = StructureData(properties=example_properties)
+    for structure_type in [StructureData, StructureDataMutable]:
+        structure = structure_type(**example_structure_dict_for_kinds)
 
-    kinds, kinds_values = structure.get_kinds()
+        new_structure = structure_type(**structure.to_dict(detect_kinds=True))
 
-    assert kinds == ["Li0", "Li1"]
-    assert kinds_values["charge"] == [1, 0]
-
-    # (2) trivial system, custom thr
-    structure = StructureData(properties=example_properties)
-
-    kinds, kinds_values = structure.get_kinds(custom_thr={"charge": 0.1})
-
-    assert kinds == ["Li0", "Li1"]
-    assert kinds_values["charge"] == [1, 0]
-
-    # (3) trivial system, exclude one property
-    structure = StructureData(properties=example_properties)
-
-    kinds, kinds_values = structure.get_kinds(exclude=["charge"])
-
-    assert kinds == ["Li0", "Li0"]
-    assert kinds_values["mass"] == structure.properties.mass.value
-    assert not "charge" in kinds_values.keys()
-
-    # (4) non-trivial system, default thr
-    structure = StructureData(properties=kinds_properties)
-
-    kinds, kinds_values = structure.get_kinds(exclude=["charge"])
-
-    assert kinds == ["Li1", "Li1", "Cu2", "Cu2"]
-    assert kinds_values["mass"] == structure.properties.mass.value
-    assert not "charge" in kinds_values.keys()
-
-    # (5) non-trivial system, custom thr
-    structure = StructureData(properties=kinds_properties)
-
-    kinds, kinds_values = structure.get_kinds(custom_thr={"charge": 0.6})
-
-    assert kinds == ["Li0", "Li1", "Cu2", "Cu2"]
-    assert kinds_values["mass"] == structure.properties.mass.value
-    assert kinds_values["charge"] == [1.0, 0.0, 0.0, 0.0]
+        assert new_structure.properties.kinds == ['Fe0', 'Fe1']
+        assert new_structure.properties.magmoms == [[2.5, 0.1, 0.1], [2.4, 0.1, 0.1]]
 
 
 # Tests to be skipped because they require the implementation of the related method:

@@ -1,4 +1,4 @@
-# `aiida-atomistic` package 
+# `aiida-atomistic` package
 
 
 AiiDA plugin which contains data and methods for atomistic simulations within AiiDA.

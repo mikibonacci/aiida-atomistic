@@ -19,7 +19,7 @@ loop_
   _atom_site_fract_y
   _atom_site_fract_z
   _atom_site_type_symbol
-         Fe1       0.0       0.0       0.0       Fe 
+         Fe1       0.0       0.0       0.0       Fe
 _cell_angle_alpha                       109.47122063449069
 _cell_angle_beta                        109.47122063449069
 _cell_angle_gamma                       109.47122063449069
@@ -28,7 +28,7 @@ _cell_length_b                          2.451045228897639
 _cell_length_c                          2.451045228897639
 loop_
   _symmetry_equiv_pos_as_xyz
-         'x, y, z' 
+         'x, y, z'
 _symmetry_int_tables_number             1
 _symmetry_space_group_name_H-M          'P 1'
 
@@ -37,4 +37,4 @@ _atom_site_moment.label
 _atom_site_moment.crystalaxis_x
 _atom_site_moment.crystalaxis_y
 _atom_site_moment.crystalaxis_z
-FE1 0.00000 0.00000 2.50000 
+FE1 0.00000 0.00000 2.50000

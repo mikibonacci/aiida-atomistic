@@ -33,7 +33,7 @@ def test_structure_initialization(example_structure_dict):
     # (1.2) Empty StructureData: cannot be done
     with pytest.raises(ValidationError):
         structure = StructureData()
-    
+
     # (2)
     for structure_type in [StructureDataMutable, StructureData]:
         structure = structure_type(**example_structure_dict)
@@ -59,7 +59,7 @@ def test_dict(example_structure_dict):
 
         for derived_property in structure.properties.model_computed_fields.keys():
             returned_dict.pop(derived_property, None)
-        
+
         assert (
             returned_dict == example_structure_dict
         ), f"The dictionary returned by the method, {returned_dict}, \
@@ -76,7 +76,7 @@ def test_structure_ASE_initialization():
         structure = structure_type.from_ase(atoms)
 
         assert isinstance(structure, structure_type)
-        
+
     atoms = bulk('Cu', 'fcc', a=3.6)
     atoms.set_initial_charges([1,])
     atoms.set_initial_magnetic_moments([[0,0,1]])
@@ -85,7 +85,7 @@ def test_structure_ASE_initialization():
 
         assert structure.properties.charges == [1]
         assert structure.properties.magmoms == [[0,0,1]]
-    
+
 def test_structure_Pymatgen_initialization():
     """
     Testing that the StructureData/StructureDataMutable is initialized correctly when Pymatgen object is provided.
@@ -97,13 +97,13 @@ def test_structure_Pymatgen_initialization():
     coords = [[0, 0, 0], [0.75,0.5,0.75]]
     lattice = Lattice.from_parameters(a=3.84, b=3.84, c=3.84, alpha=120,
                                 beta=90, gamma=60)
-    
+
     struct = Structure(lattice, ["Si", "Si"], coords)
     struct.sites[0].properties["charge"]=1
-        
+
     for structure_type in [StructureDataMutable, StructureData]:
         structure = structure_type.from_pymatgen(struct)
-    
+
         assert structure.properties.charges == [1, 0]
         assert structure.properties.magmoms == [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 
@@ -137,16 +137,16 @@ def test_mutability():
     # test StructureDataMutable mutability
 
     assert np.array_equal(m.properties.pbc,np.array([True, True, True]))
-    
+
     m.set_pbc([False, False, False])
     assert not any(m.properties.pbc)
 
     # check StructureData and StructureDataMutable give the same properties.
     # in this way I check that it works well.
     m.set_pbc([True, True, True])
-    
+
     returned_dict = s.to_dict()
-            
+
     assert returned_dict == m.to_dict()
 
     # check append_atom works properly
@@ -161,7 +161,7 @@ def test_mutability():
         },
         index=0,
     )
-    
+
     assert np.array_equal(m.get_charges(), np.array([0,0]))
 
 def test_computed_fields(example_structure_dict):
@@ -172,7 +172,7 @@ def test_computed_fields(example_structure_dict):
         assert structure.properties.charges == [1.0]
         assert structure.properties.cell_volume == 11.664000000000001
         assert structure.properties.dimensionality == {'dim': 3, 'label': 'volume', 'value': 11.664000000000001}
-        
+
         if isinstance(structure, StructureDataMutable):
             structure.add_atom(
             {
@@ -187,7 +187,7 @@ def test_computed_fields(example_structure_dict):
             )
             assert structure.properties.charges == [0.0, 1.0]
 
-            
+
 def test_model_validator(example_wrong_structure_dict,example_nomass_structure_dict):
     for structure_type in [StructureDataMutable, StructureData]:
         if isinstance(structure_type, StructureData):
@@ -195,11 +195,11 @@ def test_model_validator(example_wrong_structure_dict,example_nomass_structure_d
                 structure = structure_type(**example_wrong_structure_dict)
         elif isinstance(structure_type, StructureDataMutable):
             structure = structure_type(**example_wrong_structure_dict)
-        
+
         structure = structure_type(**example_nomass_structure_dict)
         assert structure.properties.masses == [63.546]
         assert structure.properties.sites[0].mass == 63.546
-    
+
 
 
 ## Test the get_kinds() method.
@@ -246,4 +246,3 @@ def test_get_kinds(example_structure_dict_for_kinds):
 
         assert new_structure.properties.kinds == ['Fe0', 'Fe1']
         assert new_structure.properties.magmoms == [[2.5, 0.1, 0.1], [2.4, 0.1, 0.1]]
-        

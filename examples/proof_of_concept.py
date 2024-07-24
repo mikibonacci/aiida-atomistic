@@ -60,11 +60,11 @@ print("mutable sites: ", structure.sites)
 # immutable cell:  [[2.75 2.75 0.  ]
 #  [0.   2.75 2.75]
 #  [2.75 0.   2.75]]
-#  
+#
 # mutable cell:  [[2.75 2.75 0.  ]
 #  [0.   2.75 2.75]
 #  [2.75 0.   2.75]]
-#  
+#
 # immutable sites:  [<Site: kind name 'Si' @ 0.75,0.75,0.75>, <Site: kind name 'Si' @ 0.5,0.5,0.5>]
 #
 # mutable sites:  [<Site: kind name 'Si' @ 0.75,0.75,0.75>, <Site: kind name 'Si' @ 0.5,0.5,0.5>]

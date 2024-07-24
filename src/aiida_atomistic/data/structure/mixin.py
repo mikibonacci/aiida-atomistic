@@ -52,11 +52,11 @@ _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
 class GetterMixin:
-    
+
     @classmethod
     def from_ase(
-        cls, 
-        aseatoms: ASE_ATOMS_TYPE, 
+        cls,
+        aseatoms: ASE_ATOMS_TYPE,
         detect_kinds: bool = False):
         """Load the structure from a ASE object"""
 
@@ -75,20 +75,20 @@ class GetterMixin:
             data["sites"].append(new_site.model_dump())
 
         structure = cls(**data)
-        
+
         if detect_kinds:
             data["sites"] = structure.get_kinds(ready_to_use=True)
 
         structure = cls(**data)
-        
+
         return structure
 
     @classmethod
     def from_file(
-        cls, 
-        filename, 
-        format="cif", 
-        detect_kinds: bool = False, 
+        cls,
+        filename,
+        format="cif",
+        detect_kinds: bool = False,
         **kwargs):
         """Load the structure from a file"""
 
@@ -120,8 +120,8 @@ class GetterMixin:
 
     @classmethod
     def _from_pymatgen_molecule(
-        cls, 
-        mol: PYMATGEN_MOLECULE, 
+        cls,
+        mol: PYMATGEN_MOLECULE,
         margin=5,
         detect_kinds: bool = False,
         ):
@@ -151,7 +151,7 @@ class GetterMixin:
 
     @classmethod
     def _from_pymatgen_structure(
-        cls, 
+        cls,
         struct: PYMATGEN_STRUCTURE,
         detect_kinds: bool = False,
         ):
@@ -248,13 +248,13 @@ class GetterMixin:
 
         if detect_kinds:
                 inputs["sites"] = structure.get_kinds(ready_to_use=True)
-        
+
         structure = cls(**inputs)
-        
+
         return structure
 
     def to_dict(
-            self, 
+            self,
             detect_kinds: bool = False
         ):
             """
@@ -266,14 +266,14 @@ class GetterMixin:
             :rtype: dict
             """
             dict_repr = copy.deepcopy(self.properties.model_dump())
-                
+
             if detect_kinds:
                 dict_repr["sites"] = self.get_kinds(ready_to_use=True)
-                
+
             # dict_repr = get_serialized_data(dict_repr)
-            
+
             return dict_repr
-    
+
     def get_site_property(self, property_name):
         """Return a list with length equal to the number of sites of this structure,
         where each element of the list is the property of the corresponding site.
@@ -293,19 +293,19 @@ class GetterMixin:
 
     def get_charges(self,):
         return self.get_site_property("charge")
-    
+
     def get_magmoms(self,):
         return self.get_site_property("magmom")
-    
+
     def get_kind_names(self,):
         return self.get_site_property("kind_name")
-    
+
     def get_positions(self,):
         return self.get_site_property("position")
-    
+
     def get_symbols(self,):
         return self.get_site_property("symbol")
-    
+
     def get_cell_volume(self):
         """Returns the three-dimensional cell volume in Angstrom^3.
 
@@ -549,7 +549,7 @@ class GetterMixin:
                     kind_numeration.append(i)
 
                 kind_names[where] = f"{element}{kind_numeration[-1]}"
-                
+
                 check_array[where] = i
                 #print(f"site {where} is {element}{kind_numeration[-1]}")
 
@@ -562,7 +562,7 @@ class GetterMixin:
             kind_names[i]  if not kind_tags[i] else kind_tags[i]
             for i in range(len(kind_tags))
         ]
-        
+
         kinds_dictionary["index"] = kind_numeration
         kinds_dictionary["symbol"] = symbols.tolist()
         kinds_dictionary["position"] = self.get_site_property("position").tolist()
@@ -578,13 +578,13 @@ class GetterMixin:
             for index_kind in kinds_dictionary["index"]:
                 dict_site = {}
                 for k,v in kinds_dictionary.items():
-                    if k not in ["symbol","position","index"]: 
+                    if k not in ["symbol","position","index"]:
                         dict_site[k] = v[index_kind].tolist() if isinstance(v[index_kind], np.ndarray) else v[index_kind]
                 for value in ["symbol","position"]:
                     dict_site[value] = kinds_dictionary[value][index_kind]
                 new_sites.append(dict_site)
             return new_sites
-            
+
         return kinds_dictionary
 
     def to_ase(self):
@@ -1128,13 +1128,13 @@ class GetterMixin:
 
         positions = [list(site.position) for site in self.properties.sites]
         mol =  Molecule(species, positions)
-        
+
         additional_kwargs["site_properties"] = {
                 "kind_name": self.properties.kinds,
                 "charge": self.properties.charges,
                 "magmom": self.properties.magmoms
             }
-        
+
         for prop,value in additional_kwargs.items():
             mol.add_site_property(prop, value)
 
@@ -1224,18 +1224,18 @@ class GetterMixin:
             kinds_values: list of the associated property value to each kind detected.
         """
         symbols_array = np.array(symbols)
-        
+
         if isinstance(self.get_site_property(property_name)[0], list) or isinstance(self.get_site_property(property_name)[0], np.ndarray):
             #reference_array = np.array(self.get_site_property(property_name)[0]) # I take the difference to detect also the case [1,0,0] != [-1,0,0]
             #prop_array = np.array([np.linalg.norm(row-reference_array) for row in self.get_site_property(property_name)])
             prop_array = np.array(self.get_site_property(property_name))
             shape_1 = len(prop_array[0])
             kinds_values = np.zeros((len(symbols_array),shape_1))
-        else: 
+        else:
             prop_array = np.array(self.get_site_property(property_name))
             kinds_values = np.zeros(len(symbols_array))
 
-        
+
         if thr == 0 or not thr:
             return np.array(range(len(prop_array))), prop_array
 
@@ -1254,14 +1254,14 @@ class GetterMixin:
         for index in set_indexes:
             where_index_in_indexes = np.where(indexes == index)[0]
             kinds_values[where_index_in_indexes] = prop_array[where_index_in_indexes[0]]
-            
+
 
         # here we reorder from zero the kinds.
         list_set_indexes = list(set_indexes)
         kinds_labels = np.zeros(len(symbols_array), dtype=int)
         for i in range(len(list_set_indexes)):
             kinds_labels[np.where(indexes == list_set_indexes[i])[0]] = i
-        
+
         return kinds_labels, kinds_values
 
     def __getitem__(self, index):
@@ -1280,10 +1280,10 @@ class GetterMixin:
     def __len__(
         self,
     ):
-        return len(self.properties.sites)    
-    
+        return len(self.properties.sites)
+
 class SetterMixin:
-    
+
     def set_pbc(self, value):
         """Set the periodic boundary conditions."""
         the_pbc = _get_valid_pbc(value)
@@ -1312,7 +1312,7 @@ class SetterMixin:
         else:
             for site_index in range(len(value)):
                 self.update_site(site_index, charge=value[site_index])
-                
+
     def set_magmoms(self, value):
         if not len(self.properties.sites) == len(value):
             raise ValueError(

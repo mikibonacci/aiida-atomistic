@@ -70,13 +70,13 @@ class SiteCore(BaseModel):
             data["mass"] =  _atomic_masses[data["symbol"]]
         elif data["mass"]<=0:
             raise ValueError("The mass of an atom must be positive")
-        
+
         if "kind_name" not in data:
             data["kind_name"] = data["symbol"]
-            
+
         return data
-    
-    
+
+
     @classmethod
     def atom_to_site(
         cls,
@@ -87,7 +87,7 @@ class SiteCore(BaseModel):
         charge: t.Optional[float] = None,
         magmom: t.Optional[t.List[float]] = None,
         mass: t.Optional[float] = None,
-        ) -> dict: 
+        ) -> dict:
         """Convert an ASE atom or dictionary to a dictionary object which the correct format to describe a Site."""
 
         if aseatom is not None:
@@ -111,10 +111,10 @@ class SiteCore(BaseModel):
         else:
             if position is None:
                 raise ValueError("You have to specify the position of the new atom")
-            
-            if symbol is None:  
+
+            if symbol is None:
                 raise ValueError("You have to specify the symbol of the new atom")
-            
+
             # all remaining parameters
             kind_name = symbol if kind_name is None else kind_name
             charge = 0 if charge is None else charge
@@ -131,7 +131,7 @@ class SiteCore(BaseModel):
         )
 
         return new_site
-    
+
     def update(self, **new_data):
         """Update the attributes of the SiteCore instance with new values.
 
@@ -139,7 +139,7 @@ class SiteCore(BaseModel):
         """
         for field, value in new_data.items():
             setattr(self, field, value)
-    
+
     def set_automatic_kind_name(self, tag=None):
         """Set the type to a string obtained with the symbols appended one
         after the other, without spaces, in alphabetical order;
@@ -203,7 +203,7 @@ class SiteMutable(SiteCore):
 
     _mutable = True
 
-    
+
 class SiteImmutable(SiteCore):
     """
     A class representing an immutable site in a crystal structure.

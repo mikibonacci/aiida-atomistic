@@ -34,8 +34,8 @@ _dimensionality_label = {0: '', 1: 'length', 2: 'surface', 3: 'volume'}
 class ObservedArray(np.ndarray):
     """
     This is a subclass of numpy.ndarray that allows to observe changes to the array.
-    In this way, full flexibility of StructureDataMutable is achieved and at the same 
-    time we can keep track of all the changes. 
+    In this way, full flexibility of StructureDataMutable is achieved and at the same
+    time we can keep track of all the changes.
     """
 
     def __new__(cls, input_array):
@@ -101,7 +101,7 @@ def freeze_nested(obj):
         return FrozenList(freeze_nested(v) for v in obj)
     else:
         return obj
-    
+
 class FrozenList(list):
     """
     A subclass of list that represents an immutable list.
@@ -117,8 +117,8 @@ class FrozenList(list):
 
     def __setitem__(self, index, value):
         raise ValueError("This list is immutable")
-    
-    
+
+
 def _get_valid_cell(inputcell):
     """Return the cell in a valid format from a generic input.
 
@@ -168,17 +168,17 @@ def _get_valid_pbc(inputpbc):
     return the_pbc
 
 def _check_valid_sites(input_sites):
-    
+
     num_sites = len(input_sites)
-    
+
     for i in range(num_sites):
         for j in range(num_sites):
-            if j == i: 
+            if j == i:
                 continue
             if np.allclose(input_sites[i]["position"], input_sites[j]["position"], atol=1e-3):
                 raise ValueError(f"Sites {i+1} and {j+1} cannot have the same position")
-        
-    return 
+
+    return
 
 
 def has_ase():

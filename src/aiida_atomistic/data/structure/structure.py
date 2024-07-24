@@ -61,34 +61,34 @@ _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
 
 class StructureData(Data, GetterMixin):
-        
+
     def __init__(self, **kwargs):
-        
+
         self._properties = ImmutableStructureModel(**kwargs)
         super().__init__()
-        
+
         for prop, value in self.to_dict().items():
             self.base.attributes.set(prop, value)
-    
-    @property 
+
+    @property
     def properties(self):
         if self.is_stored:
             return ImmutableStructureModel(**self.base.attributes.all)
         else:
             return self._properties
-        
+
     def to_mutable(self, detect_kinds: bool = False):
         return StructureDataMutable(**self.to_dict(detect_kinds=detect_kinds))
-        
+
 class StructureDataMutable(GetterMixin, SetterMixin):
-        
+
     def __init__(self, **kwargs):
-        
+
         self._properties = MutableStructureModel(**kwargs)
-        
-    @property 
+
+    @property
     def properties(self):
         return self._properties
-    
+
     def to_immutable(self, detect_kinds: bool = False):
         return StructureData(**self.to_dict(detect_kinds=detect_kinds))

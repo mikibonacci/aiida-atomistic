@@ -1,7 +1,7 @@
 import numpy as np
 
 import typing as t
-from pydantic import BaseModel, Field, field_validator, computed_field,model_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator, computed_field,model_validator
 
 try:
     import ase  # noqa: F401
@@ -50,8 +50,8 @@ class SiteCore(BaseModel):
     kind_name: t.Optional[str]
     position: t.List[float] = Field(min_length=3, max_length=3)
     mass: t.Optional[float] = Field(gt=0)
-    charge: t.Optional[float] = Field(default=0)
-    magmom: t.Optional[t.List[float]] = Field(min_length=3, max_length=3, default=[0.0, 0.0, 0.0])
+    charge: t.Optional[float]  = Field(default=0)
+    magmom: t.Optional[t.List[float]] = Field(min_length=3, max_length=3, default=[0,0,0])
 
     @field_validator('position','magmom')
     def validate_list(cls, v: t.List[float]) -> t.Any:
@@ -117,8 +117,8 @@ class SiteCore(BaseModel):
 
             # all remaining parameters
             kind_name = symbol if kind_name is None else kind_name
-            charge = 0 if charge is None else charge
-            magmom = [0,0,0] if magmom is None else magmom
+            charge = None if charge is None else charge
+            magmom = None if magmom is None else magmom
             mass = _atomic_masses[symbol] if mass is None else mass
 
         new_site = cls(

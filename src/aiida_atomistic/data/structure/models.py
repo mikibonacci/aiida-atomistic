@@ -2,7 +2,7 @@ import copy
 import functools
 import json
 import typing as t
-from pydantic import BaseModel, Field, field_validator, PrivateAttr, computed_field, model_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict, computed_field, model_validator
 import numpy as np
 import warnings
 
@@ -269,7 +269,7 @@ class ImmutableStructureModel(StructureBaseModel):
     """
 
     _mutable = False
-    sites: List[SiteImmutable]
+    sites: t.List[SiteImmutable]
 
     class Config:
         from_attributes = True

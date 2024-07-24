@@ -40,27 +40,21 @@ _default_values = {
 }
 
 class SiteCore(BaseModel):
-                
-    symbol: t.Literal[_valid_symbols]
-    kind_name: t.Optional[str]
-    position: t.Optional[list] = Field(min_length=3, max_length=3)
-    mass: t.Optional[float]
-    charge: t.Optional[float] = Field(default=0)
-    magmom: t.Optional[t.List[float]] = Field(min_length=3, max_length=3, default=[0.0, 0.0, 0.0])
-    
-    class Config:
-        from_attributes = True
-        frozen=False
-        arbitrary_types_allowed=True
-
-    """This class contains the information about a given site of the system.
+    """This class contains the core information about a given site of the system.
 
     It can be a single atom, or an alloy, or even contain vacancies.
     """
-    
+    model_config = ConfigDict(from_attributes = True,  frozen = False,  arbitrary_types_allowed = True)
+
+    symbol: t.Literal[_valid_symbols]
+    kind_name: t.Optional[str]
+    position: t.List[float] = Field(min_length=3, max_length=3)
+    mass: t.Optional[float] = Field(gt=0)
+    charge: t.Optional[float] = Field(default=0)
+    magmom: t.Optional[t.List[float]] = Field(min_length=3, max_length=3, default=[0.0, 0.0, 0.0])
+
     @field_validator('position','magmom')
     def validate_list(cls, v: t.List[float]) -> t.Any:
-        
         if not cls._mutable.default:
             return freeze_nested(v)
         else:
@@ -139,13 +133,19 @@ class SiteCore(BaseModel):
         return new_site
     
     def update(self, **new_data):
-            for field, value in new_data.items():
-                setattr(self, field, value)
+        """Update the attributes of the SiteCore instance with new values.
+
+        :param new_data: keyword arguments representing the attributes to be updated
+        """
+        for field, value in new_data.items():
+            setattr(self, field, value)
     
     def set_automatic_kind_name(self, tag=None):
         """Set the type to a string obtained with the symbols appended one
         after the other, without spaces, in alphabetical order;
         if the site has a vacancy, a X is appended at the end too.
+
+        :param tag: optional tag to be appended to the kind name
         """
         name_string = create_automatic_kind_name(self.symbol, self.weight)
         if tag is None:
@@ -157,12 +157,10 @@ class SiteCore(BaseModel):
         """Return a ase.Atom object for this site.
 
         :param kinds: the list of kinds from the StructureData object.
-
-        .. note:: If any site is an alloy or has vacancies, a ValueError
-            is raised (from the site.get_ase() routine).
+        :return: ase.Atom object representing this site
+        :raises ValueError: if any site is an alloy or has vacancies
         """
         from collections import defaultdict
-
         import ase
 
         # I create the list of tags
@@ -194,33 +192,28 @@ class SiteCore(BaseModel):
 
 # The Classes which are exposed to the user:
 class SiteMutable(SiteCore):
-    
+    """
+    A mutable version of the `SiteCore` class.
+
+    This class represents a site in a crystal structure that can be modified.
+
+    Attributes:
+        _mutable (bool): Flag indicating if the site is mutable.
+    """
+
     _mutable = True
-    
-    symbol: t.Literal[_valid_symbols]
-    kind_name: t.Optional[str]
-    position: t.Optional[t.List[float]] = None
-    mass: t.Optional[float] = None
-    charge: t.Optional[float] = 0
-    magmom: t.Optional[t.List[float]] = Field(min_length=3, max_length=3, default=[0.0, 0.0, 0.0])
-    
-    class Config:
-        from_attributes = True
-        frozen= False
-        arbitrary_types_allowed=True
+
     
 class SiteImmutable(SiteCore):
-    
+    """
+    A class representing an immutable site in a crystal structure.
+
+    This class inherits from the `SiteCore` class and adds the functionality to create an immutable site.
+    An immutable site cannot be modified once it is created.
+
+    Attributes:
+        _mutable (bool): A flag indicating whether the site is mutable or immutable.
+    """
+    model_config = ConfigDict(from_attributes = True,  frozen = True,  arbitrary_types_allowed = True)
+
     _mutable = False
-    
-    symbol: t.Literal[_valid_symbols]
-    kind_name: t.Optional[str]
-    position: t.List[float] = Field(min_length=3, max_length=3)
-    mass: t.Optional[float] = Field(gt=0)
-    charge: t.Optional[float] = Field(default=0)
-    magmom: t.Optional[t.List[float]] = Field(min_length=3, max_length=3, default=[0.0, 0.0, 0.0])
-    
-    class Config:
-        from_attributes = True
-        frozen= True
-        arbitrary_types_allowed=True

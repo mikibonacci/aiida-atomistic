@@ -31,26 +31,70 @@ _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 _dimensionality_label = {0: '', 1: 'length', 2: 'surface', 3: 'volume'}
 
-
 class ObservedArray(np.ndarray):
     """
     This is a subclass of numpy.ndarray that allows to observe changes to the array.
     In this way, full flexibility of StructureDataMutable is achieved and at the same 
     time we can keep track of all the changes. 
     """
+
     def __new__(cls, input_array):
-        # Convert input_array to an instance of ObservedArray
+        """
+        Create a new instance of ObservedArray.
+
+        Parameters:
+        - input_array: array-like
+            The input array to be converted to an instance of ObservedArray.
+
+        Returns:
+        - obj: ObservedArray
+            The new instance of ObservedArray.
+        """
         obj = np.asarray(input_array).view(cls)
         return obj
 
     def __setitem__(self, index, value):
+        """
+        Set the value of an item in the ObservedArray.
+
+        Parameters:
+        - index: int or tuple
+            The index or indices of the item(s) to be set.
+        - value: any
+            The value to be assigned to the item(s).
+
+        Returns:
+        None
+        """
         super(ObservedArray, self).__setitem__(index, value)
 
     def __array_finalize__(self, obj):
-        # This method is called when the view is created or sliced
-        if obj is None: return
+        """
+        Finalize the creation of the ObservedArray.
+
+        This method is called when the view is created or sliced.
+
+        Parameters:
+        - obj: ObservedArray or None
+            The object being finalized.
+
+        Returns:
+        None
+        """
+        if obj is None:
+            return
 
 def freeze_nested(obj):
+    """
+    Recursively freezes a nested dictionary or list by converting it into an immutable object.
+
+    Args:
+        obj (dict or list): The nested dictionary or list to be frozen.
+
+    Returns:
+        AttributesFrozendict or FrozenList: The frozen version of the input object.
+
+    """
     if isinstance(obj, dict):
         return AttributesFrozendict({k: freeze_nested(v) for k, v in obj.items()})
     if isinstance(obj, list):
@@ -59,7 +103,18 @@ def freeze_nested(obj):
         return obj
     
 class FrozenList(list):
-    
+    """
+    A subclass of list that represents an immutable list.
+
+    This class overrides the __setitem__ method to raise a ValueError
+    when attempting to modify the list.
+
+    Usage:
+    >>> my_list = FrozenList([1, 2, 3])
+    >>> my_list[0] = 4
+    ValueError: This list is immutable
+    """
+
     def __setitem__(self, index, value):
         raise ValueError("This list is immutable")
     
@@ -115,6 +170,7 @@ def _get_valid_pbc(inputpbc):
 def _check_valid_sites(input_sites):
     
     num_sites = len(input_sites)
+    
     for i in range(num_sites):
         for j in range(num_sites):
             if j == i: 

@@ -15,7 +15,6 @@ The comments the test categories should be replaced by the pytest.mark in the fu
 
 # StructureData initialization:
 
-
 def test_structure_initialization(example_structure_dict):
     """
     Testing that the StructureDataMutable is initialized correctly when:
@@ -92,19 +91,21 @@ def test_structure_Pymatgen_initialization():
     Testing that the StructureData/StructureDataMutable is initialized correctly when Pymatgen object is provided.
     """
 
+    from pymatgen.core import Lattice, Structure, Molecule
+
+
     coords = [[0, 0, 0], [0.75,0.5,0.75]]
     lattice = Lattice.from_parameters(a=3.84, b=3.84, c=3.84, alpha=120,
                                 beta=90, gamma=60)
     
+    struct = Structure(lattice, ["Si", "Si"], coords)
+    struct.sites[0].properties["charge"]=1
+        
     for structure_type in [StructureDataMutable, StructureData]:
-        struct = structure_type(lattice, ["Si", "Si"], coords)
-
-        struct.sites[0].properties["charge"]=1
-
-        mutable_structure = StructureDataMutable.from_pymatgen(struct)
+        structure = structure_type.from_pymatgen(struct)
     
-    assert structure.properties.charges == [1, 0]
-    assert structure.properties.magmoms == [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
+        assert structure.properties.charges == [1, 0]
+        assert structure.properties.magmoms == [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 
 def test_mutability():
     atoms = bulk("Cu", "fcc", a=3.6)
@@ -245,14 +246,4 @@ def test_get_kinds(example_structure_dict_for_kinds):
 
         assert new_structure.properties.kinds == ['Fe0', 'Fe1']
         assert new_structure.properties.magmoms == [[2.5, 0.1, 0.1], [2.4, 0.1, 0.1]]
-
-
-# Tests to be skipped because they require the implementation of the related method:
-
-
-@pytest.mark.skip
-def test_structure_pymatgen_initialization():
-    """
-    Testing that the StructureData is initialized correctly when Pymatgen Atoms object is provided.
-    """
-    pass
+        

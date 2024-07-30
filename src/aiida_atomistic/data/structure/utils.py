@@ -764,3 +764,23 @@ def create_automatic_kind_name(symbols, weights):
     if has_vacancies(weights):
         name_string += "X"
     return name_string
+
+
+def find_unique(prop_array, thr):
+    """Return a list that index the prop with same number if their value is under thr"""
+
+    num_sites = len(prop_array)
+    indexes = np.zeros(num_sites, int)
+    current_index=0
+    for i in range(1, num_sites):
+        current_index += 1
+        indexes[i] = current_index
+        # the first site is always marked as `0`
+        for j in range(i):
+            if np.linalg.norm(prop_array[j] - prop_array[i]) < thr:
+                indexes[i] = indexes[j]
+                current_index -= 1
+                break
+    return indexes
+
+

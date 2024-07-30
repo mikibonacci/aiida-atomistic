@@ -39,6 +39,7 @@ from aiida_atomistic.data.structure.utils import (
     calc_cell_volume,
     create_automatic_kind_name,
     get_formula,
+    find_unique,
 )
 
 _MASS_THRESHOLD = 1.0e-3
@@ -237,12 +238,15 @@ class GetterMixin:
             :return: The structure as a dictionary.
             :rtype: dict
             """
-            
-            
+
+
             dict_repr = copy.deepcopy(self.properties.model_dump())
                 
             if detect_kinds:
                 dict_repr["sites"] = self.get_kinds(ready_to_use=True)
+                dict_repr["kinds"] = [
+                    site["kind_name"] for site in dict_repr["sites"]
+                ]
                 
             # dict_repr = get_serialized_data(dict_repr)
             
@@ -503,31 +507,33 @@ class GetterMixin:
         k = k.T
 
         # Step 2:
-        kinds = np.zeros(len(self.get_site_property("symbol")), dtype=int) - 1
-        check_array = np.zeros(len(self.get_site_property("position")), dtype=int)
+        # kinds = np.zeros(len(self.get_site_property("symbol")), dtype=int) - 1
+        check_array = np.zeros(len(self.get_site_property("position")), dtype=int) - 1
         kind_names = symbols.tolist()
-        kind_numeration = []
+        kind_numeration = np.zeros_like(check_array, dtype=int)
         for i in range(len(k)):
             # Goes from the first symbol... so the numbers will be from zero to N (Please note: the symbol does not matter: Li0, Cu1... not Li0, Cu0.)
             element = symbols[i]
             diff = k - k[i]
             diff_sum = np.sum(np.abs(diff), axis=1)
 
-            kinds[np.where(diff_sum == 0)[0]] = i
+            # kinds[np.where(diff_sum == 0)[0]] = i
             for where in np.where(diff_sum == 0)[0]:
+                if not check_array[where] == -1:
+                    continue
                 if (
                     f"{element}{i}" in kind_tags
                 ):  # If I encounter the same tag as provided as input or generated here:
-                    kind_numeration.append(i + len(k))
+                    kind_numeration[where] = i + len(k)
                 else:
-                    kind_numeration.append(i)
+                    kind_numeration[where] = i
 
-                kind_names[where] = f"{element}{kind_numeration[-1]}"
+                kind_names[where] = f"{element}{kind_numeration[where]}"
                 
                 check_array[where] = i
                 #print(f"site {where} is {element}{kind_numeration[-1]}")
 
-            if len(np.where(kinds == -1)[0]) == 0:
+            if len(np.where(check_array == -1)[0]) == 0:
                 #print(f"search ended at iteration {i}")
                 break
 
@@ -549,13 +555,14 @@ class GetterMixin:
 
         if ready_to_use:
             new_sites = []
-            for index_kind in kinds_dictionary["index"]:
+            for index_global, index_kind in enumerate(kinds_dictionary["index"]):
                 dict_site = {}
                 for k,v in kinds_dictionary.items():
                     if k not in ["symbol","position","index"]: 
                         dict_site[k] = v[index_kind].tolist() if isinstance(v[index_kind], np.ndarray) else v[index_kind]
                 for value in ["symbol","position"]:
-                    dict_site[value] = kinds_dictionary[value][index_kind]
+                    # even for same kind, the position should be different
+                    dict_site[value] = kinds_dictionary[value][index_global]
                 new_sites.append(dict_site)
             return new_sites
             
@@ -1204,12 +1211,16 @@ class GetterMixin:
 
         # list for the value of the property for each generated kind.
 
-        if isinstance(prop_array[0], np.ndarray):
-            indexes = np.array([np.linalg.norm(row-prop_array[0])/ thr for row in prop_array], dtype=int)
-        else:
-            indexes = np.array((prop_array - np.min(prop_array)) / thr, dtype=int)
+        # This will result in some error, e.g. use structure 0.199_Mn3Sn.mcif
+        # Try to fix it in a rude way
+        # if isinstance(prop_array[0], np.ndarray):
+            # indexes = np.array([np.linalg.norm(row-prop_array[0])/ thr for row in prop_array], dtype=int)
+        # else:
+        #     indexes = np.array((prop_array - np.min(prop_array)) / thr, dtype=int)
 
         # Here we select the closest value present in the property values
+        indexes = find_unique(prop_array, thr)
+
         set_indexes = set(indexes)
 
         for index in set_indexes:

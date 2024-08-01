@@ -1,5 +1,6 @@
 import copy
 import functools
+import re
 
 import numpy as np
 
@@ -31,39 +32,94 @@ _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 _dimensionality_label = {0: '', 1: 'length', 2: 'surface', 3: 'volume'}
 
-
 class ObservedArray(np.ndarray):
     """
     This is a subclass of numpy.ndarray that allows to observe changes to the array.
-    In this way, full flexibility of StructureDataMutable is achieved and at the same 
-    time we can keep track of all the changes. 
+    In this way, full flexibility of StructureDataMutable is achieved and at the same
+    time we can keep track of all the changes.
     """
+
     def __new__(cls, input_array):
-        # Convert input_array to an instance of ObservedArray
+        """
+        Create a new instance of ObservedArray.
+
+        Parameters:
+        - input_array: array-like
+            The input array to be converted to an instance of ObservedArray.
+
+        Returns:
+        - obj: ObservedArray
+            The new instance of ObservedArray.
+        """
         obj = np.asarray(input_array).view(cls)
         return obj
 
     def __setitem__(self, index, value):
+        """
+        Set the value of an item in the ObservedArray.
+
+        Parameters:
+        - index: int or tuple
+            The index or indices of the item(s) to be set.
+        - value: any
+            The value to be assigned to the item(s).
+
+        Returns:
+        None
+        """
         super(ObservedArray, self).__setitem__(index, value)
 
     def __array_finalize__(self, obj):
-        # This method is called when the view is created or sliced
-        if obj is None: return
+        """
+        Finalize the creation of the ObservedArray.
+
+        This method is called when the view is created or sliced.
+
+        Parameters:
+        - obj: ObservedArray or None
+            The object being finalized.
+
+        Returns:
+        None
+        """
+        if obj is None:
+            return
 
 def freeze_nested(obj):
+    """
+    Recursively freezes a nested dictionary or list by converting it into an immutable object.
+
+    Args:
+        obj (dict or list): The nested dictionary or list to be frozen.
+
+    Returns:
+        AttributesFrozendict or FrozenList: The frozen version of the input object.
+
+    """
     if isinstance(obj, dict):
         return AttributesFrozendict({k: freeze_nested(v) for k, v in obj.items()})
     if isinstance(obj, list):
         return FrozenList(freeze_nested(v) for v in obj)
     else:
         return obj
-    
+
 class FrozenList(list):
-    
+    """
+    A subclass of list that represents an immutable list.
+
+    This class overrides the __setitem__ method to raise a ValueError
+    when attempting to modify the list.
+
+    Usage:
+    >>> my_list = FrozenList([1, 2, 3])
+    >>> my_list[0] = 4
+    ValueError: This list is immutable
+    """
+
     def __setitem__(self, index, value):
         raise ValueError("This list is immutable")
-    
-    
+
+
 def _get_valid_cell(inputcell):
     """Return the cell in a valid format from a generic input.
 
@@ -113,16 +169,17 @@ def _get_valid_pbc(inputpbc):
     return the_pbc
 
 def _check_valid_sites(input_sites):
-    
+
     num_sites = len(input_sites)
+
     for i in range(num_sites):
         for j in range(num_sites):
-            if j == i: 
+            if j == i:
                 continue
             if np.allclose(input_sites[i]["position"], input_sites[j]["position"], atol=1e-3):
                 raise ValueError(f"Sites {i+1} and {j+1} cannot have the same position")
-        
-    return 
+
+    return
 
 
 def has_ase():
@@ -216,9 +273,13 @@ def _create_symbols_tuple(symbols):
     this is converted to a tuple with one single element.
     """
     if isinstance(symbols, str):
-        symbols_list = (symbols,)
+        symbols_list = re.sub( r"([A-Z])", r" \1", symbols).split()
     else:
         symbols_list = tuple(symbols)
+
+    for symbol in symbols_list:
+        if symbol not in _valid_symbols:
+            raise ValueError(f"Some or all of the symbols provided are not correct: {symbols_list}")
     return symbols_list
 
 
@@ -764,3 +825,39 @@ def create_automatic_kind_name(symbols, weights):
     if has_vacancies(weights):
         name_string += "X"
     return name_string
+
+def set_symbols_and_weights(new_data):
+        """Set the chemical symbols and the weights for the site.
+
+        .. note:: Note that the kind name remains unchanged.
+        """
+        symbols_tuple = _create_symbols_tuple(new_data["symbol"])
+        weights_tuple = _create_weights_tuple(new_data["weights"])
+        if len(symbols_tuple) != len(weights_tuple):
+            raise ValueError('The number of symbols and weights must coincide.')
+        validate_symbols_tuple(symbols_tuple)
+
+        validate_weights_tuple(weights_tuple, _SUM_THRESHOLD)
+        new_data["alloy"] = symbols_tuple
+        new_data["weights"] = weights_tuple
+
+        if not "mass" in new_data.keys() or np.isnan(new_data.get("mass", None)):
+            # Weighted mass
+            w_sum = sum(weights_tuple)
+            normalized_weights = (i / w_sum for i in weights_tuple)
+            element_masses = (_atomic_masses[sym] for sym in symbols_tuple)
+            new_data["mass"] = sum(i * j for i, j in zip(normalized_weights, element_masses))
+
+def check_is_alloy(data):
+    """Check if the data is an alloy or not.
+
+    :param data: the data to check. The dict of the SiteCore model.
+    :return: True if the data is an alloy, False otherwise.
+    """
+    new_data = copy.deepcopy(data)
+    if len(new_data.get("weights", [1,])) == 1:
+        if new_data["symbol"] not in _valid_symbols:
+            raise ValueError(f'his is not a valid element: {new_data["symbol"]}')
+        return None
+    set_symbols_and_weights(new_data)
+    return new_data

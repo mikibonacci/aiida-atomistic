@@ -7,14 +7,12 @@ from aiida_atomistic.data.structure.site import SiteMutable, SiteImmutable
 
 from pydantic import ValidationError
 
-
 """
 General tests for the atomistic StructureData.
 The comments the test categories should be replaced by the pytest.mark in the future.
 """
 
 # StructureData initialization:
-
 
 def test_structure_initialization(example_structure_dict):
     """
@@ -34,7 +32,7 @@ def test_structure_initialization(example_structure_dict):
     # (1.2) Empty StructureData: cannot be done
     with pytest.raises(ValidationError):
         structure = StructureData()
-    
+
     # (2)
     for structure_type in [StructureDataMutable, StructureData]:
         structure = structure_type(**example_structure_dict)
@@ -60,7 +58,9 @@ def test_dict(example_structure_dict):
 
         for derived_property in structure.properties.model_computed_fields.keys():
             returned_dict.pop(derived_property, None)
-        
+        for property_to_delete in ["custom", "tot_charge", "tot_magnetization"]:
+            returned_dict.pop(property_to_delete, None)
+
         assert (
             returned_dict == example_structure_dict
         ), f"The dictionary returned by the method, {returned_dict}, \
@@ -77,7 +77,7 @@ def test_structure_ASE_initialization():
         structure = structure_type.from_ase(atoms)
 
         assert isinstance(structure, structure_type)
-        
+
     atoms = bulk('Cu', 'fcc', a=3.6)
     atoms.set_initial_charges([1,])
     atoms.set_initial_magnetic_moments([[0,0,1]])
@@ -86,7 +86,27 @@ def test_structure_ASE_initialization():
 
         assert structure.properties.charges == [1]
         assert structure.properties.magmoms == [[0,0,1]]
-    
+
+def test_structure_Pymatgen_initialization():
+    """
+    Testing that the StructureData/StructureDataMutable is initialized correctly when Pymatgen object is provided.
+    """
+
+    from pymatgen.core import Lattice, Structure, Molecule
+
+
+    coords = [[0, 0, 0], [0.75,0.5,0.75]]
+    lattice = Lattice.from_parameters(a=3.84, b=3.84, c=3.84, alpha=120,
+                                beta=90, gamma=60)
+
+    struct = Structure(lattice, ["Si", "Si"], coords)
+    struct.sites[0].properties["charge"]=1
+
+    for structure_type in [StructureDataMutable, StructureData]:
+        structure = structure_type.from_pymatgen(struct)
+
+        assert structure.properties.charges == [1, 0]
+        assert structure.properties.magmoms == [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 
 def test_mutability():
     atoms = bulk("Cu", "fcc", a=3.6)
@@ -118,16 +138,16 @@ def test_mutability():
     # test StructureDataMutable mutability
 
     assert np.array_equal(m.properties.pbc,np.array([True, True, True]))
-    
+
     m.set_pbc([False, False, False])
     assert not any(m.properties.pbc)
 
     # check StructureData and StructureDataMutable give the same properties.
     # in this way I check that it works well.
     m.set_pbc([True, True, True])
-    
+
     returned_dict = s.to_dict()
-            
+
     assert returned_dict == m.to_dict()
 
     # check append_atom works properly
@@ -142,7 +162,7 @@ def test_mutability():
         },
         index=0,
     )
-    
+
     assert np.array_equal(m.get_charges(), np.array([0,0]))
 
 def test_computed_fields(example_structure_dict):
@@ -153,7 +173,7 @@ def test_computed_fields(example_structure_dict):
         assert structure.properties.charges == [1.0]
         assert structure.properties.cell_volume == 11.664000000000001
         assert structure.properties.dimensionality == {'dim': 3, 'label': 'volume', 'value': 11.664000000000001}
-        
+
         if isinstance(structure, StructureDataMutable):
             structure.add_atom(
             {
@@ -168,7 +188,7 @@ def test_computed_fields(example_structure_dict):
             )
             assert structure.properties.charges == [0.0, 1.0]
 
-            
+
 def test_model_validator(example_wrong_structure_dict,example_nomass_structure_dict):
     for structure_type in [StructureDataMutable, StructureData]:
         if isinstance(structure_type, StructureData):
@@ -176,11 +196,11 @@ def test_model_validator(example_wrong_structure_dict,example_nomass_structure_d
                 structure = structure_type(**example_wrong_structure_dict)
         elif isinstance(structure_type, StructureDataMutable):
             structure = structure_type(**example_wrong_structure_dict)
-        
+
         structure = structure_type(**example_nomass_structure_dict)
         assert structure.properties.masses == [63.546]
         assert structure.properties.sites[0].mass == 63.546
-    
+
 
 
 ## Test the get_kinds() method.
@@ -217,60 +237,21 @@ def kinds_properties():
 
     return properties
 
-
-@pytest.mark.skip
-def test_get_kinds(example_properties, kinds_properties):
+def test_get_kinds(example_structure_dict_for_kinds):
 
     # (1) trivial system, defaults thr
-    structure = StructureData(properties=example_properties)
+    for structure_type in [StructureData, StructureDataMutable]:
+        structure = structure_type(**example_structure_dict_for_kinds)
 
-    kinds, kinds_values = structure.get_kinds()
+        new_structure = structure_type(**structure.to_dict(detect_kinds=True))
 
-    assert kinds == ["Li0", "Li1"]
-    assert kinds_values["charge"] == [1, 0]
+        assert new_structure.properties.kinds == ['Fe0', 'Fe1']
+        assert new_structure.properties.magmoms == [[2.5, 0.1, 0.1], [2.4, 0.1, 0.1]]
 
-    # (2) trivial system, custom thr
-    structure = StructureData(properties=example_properties)
+def test_alloy(example_structure_dict_alloy):
 
-    kinds, kinds_values = structure.get_kinds(custom_thr={"charge": 0.1})
+    for structure_type in [StructureData, StructureDataMutable]:
+        structure = structure_type(**example_structure_dict_alloy)
 
-    assert kinds == ["Li0", "Li1"]
-    assert kinds_values["charge"] == [1, 0]
-
-    # (3) trivial system, exclude one property
-    structure = StructureData(properties=example_properties)
-
-    kinds, kinds_values = structure.get_kinds(exclude=["charge"])
-
-    assert kinds == ["Li0", "Li0"]
-    assert kinds_values["mass"] == structure.properties.mass.value
-    assert not "charge" in kinds_values.keys()
-
-    # (4) non-trivial system, default thr
-    structure = StructureData(properties=kinds_properties)
-
-    kinds, kinds_values = structure.get_kinds(exclude=["charge"])
-
-    assert kinds == ["Li1", "Li1", "Cu2", "Cu2"]
-    assert kinds_values["mass"] == structure.properties.mass.value
-    assert not "charge" in kinds_values.keys()
-
-    # (5) non-trivial system, custom thr
-    structure = StructureData(properties=kinds_properties)
-
-    kinds, kinds_values = structure.get_kinds(custom_thr={"charge": 0.6})
-
-    assert kinds == ["Li0", "Li1", "Cu2", "Cu2"]
-    assert kinds_values["mass"] == structure.properties.mass.value
-    assert kinds_values["charge"] == [1.0, 0.0, 0.0, 0.0]
-
-
-# Tests to be skipped because they require the implementation of the related method:
-
-
-@pytest.mark.skip
-def test_structure_pymatgen_initialization():
-    """
-    Testing that the StructureData is initialized correctly when Pymatgen Atoms object is provided.
-    """
-    pass
+        assert structure.properties.masses == [45.263768999999996]
+        assert structure.properties.symbols == ["CuAl"]

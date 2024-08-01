@@ -24,7 +24,9 @@ requires-python = ">=3.7"
 dependencies = [
     "aiida-core>=2.0,<3",
     "voluptuous",
-    "ase"
+    "ase",
+    "pymatgen>=2022.1.20",
+    "pydantic>=2.6"
 ]
 
 [project.urls]
@@ -36,7 +38,8 @@ testing = [
     "wheel~=0.31",
     "coverage[toml]",
     "pytest~=6.0",
-    "pytest-cov"
+    "pytest-cov",
+    "six",
 ]
 pre-commit = [
     "pre-commit~=2.2",
@@ -55,7 +58,6 @@ docs = [
 
 [project.entry-points."aiida.data"]
 "atomistic.StructureData" = "aiida_atomistic.data.structure.structure:StructureData"
-"atomistic.StructureDataMutable" = "aiida_atomistic.data.structure.mutable:StructureDataMutable"
 
 [project.entry-points."aiida.calculations"]
 "atomistic" = "aiida_atomistic.calculations:DiffCalculation"

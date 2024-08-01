@@ -59,36 +59,42 @@ _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
+_default_values = {
+    "charges": 0,
+    "magmoms": [0, 0, 0],
+}
 
 class StructureData(Data, GetterMixin):
-        
+
     def __init__(self, **kwargs):
-        
+
         self._properties = ImmutableStructureModel(**kwargs)
         super().__init__()
-        
-        for prop, value in self.to_dict().items():
-            self.base.attributes.set(prop, value)
-    
-    @property 
+
+        defined_properties = self.get_defined_properties() # exclude the default ones. We do not need to store them into the db.
+        for prop, value in self.properties.model_dump(exclude_defaults=True).items():
+            if prop in defined_properties:
+                self.base.attributes.set(prop, value)
+
+    @property
     def properties(self):
         if self.is_stored:
             return ImmutableStructureModel(**self.base.attributes.all)
         else:
             return self._properties
-        
-    def to_mutable(self):
-        return StructureDataMutable(**self.to_dict())
-        
+
+    def to_mutable(self, detect_kinds: bool = False):
+        return StructureDataMutable(**self.to_dict(detect_kinds=detect_kinds))
+
 class StructureDataMutable(GetterMixin, SetterMixin):
-        
+
     def __init__(self, **kwargs):
-        
+
         self._properties = MutableStructureModel(**kwargs)
-        
-    @property 
+
+    @property
     def properties(self):
         return self._properties
-    
-    def to_immutable(self):
-        return StructureData(**self.to_dict())
+
+    def to_immutable(self, detect_kinds: bool = False):
+        return StructureData(**self.to_dict(detect_kinds=detect_kinds))

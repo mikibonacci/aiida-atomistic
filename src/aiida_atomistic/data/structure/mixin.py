@@ -51,7 +51,20 @@ _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
 
+_default_values = {
+    "charges": 0,
+    "magmoms": [0, 0, 0],
+}
+
 class GetterMixin:
+
+    @property
+    def is_alloy(self):
+        return any(_.is_alloy for _ in self.properties.sites)
+
+    @property
+    def has_vacancies(self):
+        return any(_.has_vacancies for _ in self.properties.sites)
 
     @classmethod
     def from_ase(
@@ -233,7 +246,7 @@ class GetterMixin:
 
             site_info = {
                 "symbol": site.specie.symbol,
-                "weights": site.species.weight,
+                "mass": site.species.weight,
                 "position": site.coords.tolist(),
                 "charge": site.properties.get("charge", 0.0),
                 'magmom': site.properties.get("magmom").moment if "magmom" in site.properties.keys() else [0,0,0]
@@ -289,7 +302,6 @@ class GetterMixin:
             domain (str, optional): restrict the domain of the printed property names. Defaults to None, but can be also 'site'.
         """
         return {'direct': list(self.properties.model_fields.keys()), 'computed': list(self.properties.model_computed_fields.keys()), 'site':list(Site.model_fields.keys())}
-
 
     def get_charges(self,):
         return self.get_site_property("charge")
@@ -897,7 +909,7 @@ class GetterMixin:
         if atoms is None:
             raise TypeError("The data does not contain any XYZ data")
 
-        self.clear_kinds()
+        #self.clear_kinds()
         self.properties.pbc = (False, False, False)
 
         for sym, position in atoms:
@@ -1235,7 +1247,6 @@ class GetterMixin:
             prop_array = np.array(self.get_site_property(property_name))
             kinds_values = np.zeros(len(symbols_array))
 
-
         if thr == 0 or not thr:
             return np.array(range(len(prop_array))), prop_array
 
@@ -1281,6 +1292,30 @@ class GetterMixin:
         self,
     ):
         return len(self.properties.sites)
+
+    def get_defined_properties(self, exclude_defaults=True):
+        """
+        Get the defined properties of the structure.
+
+        Args:
+            exclude_defaults (bool): Whether to exclude properties with default values.
+
+        Returns:
+            list: A list of defined properties.
+        """
+        defined_properties = []
+
+        for prop, value in self.properties.model_dump(exclude_defaults=exclude_defaults).items():
+            if isinstance(value, list):
+                if value.count(_default_values.get(prop, None)) == len(value):
+                    # Skip charges, magmoms if not defined for any site.
+                    continue
+                else:
+                    defined_properties.append(prop)
+            elif value is not None:
+                defined_properties.append(prop)
+
+        return defined_properties
 
 class SetterMixin:
 

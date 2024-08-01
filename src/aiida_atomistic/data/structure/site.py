@@ -1,6 +1,7 @@
 import numpy as np
 
 import typing as t
+import re
 from pydantic import BaseModel, Field, ConfigDict, field_validator, computed_field,model_validator
 
 try:
@@ -18,6 +19,7 @@ from aiida.common.constants import elements
 from aiida_atomistic.data.structure.utils import (
     create_automatic_kind_name,
     freeze_nested,
+    check_is_alloy
 )
 
 
@@ -36,22 +38,24 @@ _default_values = {
     "charge": 0,
     "magmom": [0, 0, 0],
     "hubbard": None,
-    "weight": 1,
+    "weight": (1,)
 }
 
 class SiteCore(BaseModel):
     """This class contains the core information about a given site of the system.
 
     It can be a single atom, or an alloy, or even contain vacancies.
+
     """
     model_config = ConfigDict(from_attributes = True,  frozen = False,  arbitrary_types_allowed = True)
 
-    symbol: t.Literal[_valid_symbols]
+    symbol: t.Optional[str] # validation is done in the check_is_alloy
     kind_name: t.Optional[str]
     position: t.List[float] = Field(min_length=3, max_length=3)
     mass: t.Optional[float] = Field(gt=0)
-    charge: t.Optional[float]  = Field(default=0)
-    magmom: t.Optional[t.List[float]] = Field(min_length=3, max_length=3, default=[0,0,0])
+    charge: t.Optional[float] = Field(default=0)
+    magmom: t.Optional[t.List[float]] = Field(min_length=3, max_length=3, default=[0.0, 0.0, 0.0])
+    weights: t.Optional[t.Tuple[float, ...]] = Field(default=(1,))
 
     @field_validator('position','magmom')
     def validate_list(cls, v: t.List[float]) -> t.Any:
@@ -64,6 +68,13 @@ class SiteCore(BaseModel):
     def check_minimal_requirements(cls, data):
         if "symbol" not in data and cls._mutable.default:
             data["symbol"] = "H"
+
+        # here below we proceed as in the old Kind, where we detect if
+        # we have an alloy (i.e. more than one element for the given site)
+        alloy_detector = check_is_alloy(data)
+        if alloy_detector:
+            data.update(alloy_detector)
+
         if "mass" not in data:
             data["mass"] = _atomic_masses[data["symbol"]]
         elif not data["mass"]:
@@ -76,6 +87,29 @@ class SiteCore(BaseModel):
 
         return data
 
+    @property
+    def is_alloy(self):
+        """Return whether the Site is an alloy, i.e. contains more than one element
+
+        :return: boolean, True if the kind has more than one element, False otherwise.
+        """
+        return len(self.weights) != 1
+
+    @property
+    def alloy_list(self):
+        """Return the list of elements in the given site which is defined as an alloy
+        """
+        return re.sub( r"([A-Z])", r" \1", self.symbol).split()
+
+    @property
+    def has_vacancies(self):
+        """Return whether the Structure contains vacancies, i.e. when the sum of the weights is less than one.
+
+        .. note:: the property uses the internal variable `_SUM_THRESHOLD` as a threshold.
+
+        :return: boolean, True if the sum of the weights is less than one, False otherwise
+        """
+        return not 1.0 - sum(self.weights) < _SUM_THRESHOLD
 
     @classmethod
     def atom_to_site(
@@ -87,6 +121,7 @@ class SiteCore(BaseModel):
         charge: t.Optional[float] = None,
         magmom: t.Optional[t.List[float]] = None,
         mass: t.Optional[float] = None,
+        weights: t.Optional[t.Tuple[float, ...]] = None
         ) -> dict:
         """Convert an ASE atom or dictionary to a dictionary object which the correct format to describe a Site."""
 
@@ -120,6 +155,7 @@ class SiteCore(BaseModel):
             charge = None if charge is None else charge
             magmom = None if magmom is None else magmom
             mass = _atomic_masses[symbol] if mass is None else mass
+            weights = None if weights is None else weights
 
         new_site = cls(
             symbol=symbol,

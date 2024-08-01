@@ -7,7 +7,6 @@ from aiida_atomistic.data.structure.site import SiteMutable, SiteImmutable
 
 from pydantic import ValidationError
 
-
 """
 General tests for the atomistic StructureData.
 The comments the test categories should be replaced by the pytest.mark in the future.
@@ -59,6 +58,8 @@ def test_dict(example_structure_dict):
 
         for derived_property in structure.properties.model_computed_fields.keys():
             returned_dict.pop(derived_property, None)
+        for property_to_delete in ["custom", "tot_charge", "tot_magnetization"]:
+            returned_dict.pop(property_to_delete, None)
 
         assert (
             returned_dict == example_structure_dict
@@ -246,3 +247,11 @@ def test_get_kinds(example_structure_dict_for_kinds):
 
         assert new_structure.properties.kinds == ['Fe0', 'Fe1']
         assert new_structure.properties.magmoms == [[2.5, 0.1, 0.1], [2.4, 0.1, 0.1]]
+
+def test_alloy(example_structure_dict_alloy):
+
+    for structure_type in [StructureData, StructureDataMutable]:
+        structure = structure_type(**example_structure_dict_alloy)
+
+        assert structure.properties.masses == [45.263768999999996]
+        assert structure.properties.symbols == ["CuAl"]

@@ -2,7 +2,7 @@ import copy
 import functools
 import json
 import typing as t
-from pydantic import BaseModel, Field, field_validator, ConfigDict, computed_field, model_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict, computed_field, model_validator, field_serializer
 import numpy as np
 import warnings
 
@@ -67,15 +67,20 @@ class StructureBaseModel(BaseModel):
     Attributes:
         pbc (Optional[List[bool]]): Periodic boundary conditions in the x, y, and z directions.
         cell (Optional[List[List[float]]]): The cell vectors defining the unit cell of the structure.
+        tot_charge (Optional[float]): The total charge of the structure.
+        tot_magnetization (Optional[float]): The total magnetization of the structure.
     """
 
-    pbc: t.Optional[t.List[bool]] = Field(min_length=3, max_length=3, default_factory=lambda: [True, True, True])
-    cell: t.Optional[t.List[t.List[float]]] = Field(default_factory=lambda: _DEFAULT_CELL)
+    pbc: t.Optional[t.List[bool]] = Field(min_length=3, max_length=3, default = None)
+    cell: t.Optional[t.List[t.List[float]]] = Field(default  = None)
+    tot_charge: t.Optional[float] = Field(default  = None)
+    tot_magnetization: t.Optional[float] = Field(default  = None)
+    custom: t.Optional[dict] = Field(default=None)
 
     class Config:
         from_attributes = True
         frozen = False
-        arbitrary_types_allowed=True
+        arbitrary_types_allowed = True
 
     @field_validator('pbc')
     @classmethod
@@ -140,8 +145,36 @@ class StructureBaseModel(BaseModel):
 
         return v
 
+    @model_validator(mode='before')
+    def check_minimal_requirements(cls, data):
+        """
+        Validate the minimal requirements of the structure.
+
+        Args:
+            data (dict): The input data for the structure.
+
+        Returns:
+            dict: The validated input data.
+
+        Raises:
+            ValueError: If the structure does not meet the minimal requirements.
+        """
+        if not data.get("sites", None) and not cls._mutable:
+            raise ValueError("The structure must contain at least one site")
+        elif not data.get("sites", None) and cls._mutable:
+            pass
+        else:
+            _check_valid_sites(data["sites"])
+        if not data.get("cell", None):
+            # raise ValueError("The structure must contain a cell")
+            warnings.warn("using default cell")
+            data["cell"] = _DEFAULT_CELL
+        if not data.get("pbc", None):
+            # raise ValueError("The structure must contain periodic boundary conditions")
+            data["pbc"] = [True,True,True]
+        return data
+
     @computed_field
-    @property
     def cell_volume(self) -> float:
         """
         Compute the volume of the unit cell.
@@ -152,7 +185,6 @@ class StructureBaseModel(BaseModel):
         return calc_cell_volume(self.cell)
 
     @computed_field
-    @property
     def dimensionality(self) -> dict:
         """
         Determine the dimensionality of the structure.
@@ -163,7 +195,6 @@ class StructureBaseModel(BaseModel):
         return get_dimensionality(self.pbc, self.cell)
 
     @computed_field
-    @property
     def charges(self) -> FrozenList[float]:
         """
         Get the charges of the sites in the structure.
@@ -174,7 +205,6 @@ class StructureBaseModel(BaseModel):
         return FrozenList([site.charge for site in self.sites])
 
     @computed_field
-    @property
     def magmoms(self) -> FrozenList[FrozenList[float]]:
         """
         Get the magnetic moments of the sites in the structure.
@@ -185,7 +215,6 @@ class StructureBaseModel(BaseModel):
         return FrozenList([site.magmom for site in self.sites])
 
     @computed_field
-    @property
     def masses(self) -> FrozenList[float]:
         """
         Get the masses of the sites in the structure.
@@ -196,7 +225,6 @@ class StructureBaseModel(BaseModel):
         return FrozenList([site.mass for site in self.sites])
 
     @computed_field
-    @property
     def kinds(self) -> FrozenList[str]:
         """
         Get the kinds of the sites in the structure.
@@ -207,7 +235,6 @@ class StructureBaseModel(BaseModel):
         return FrozenList([site.kind_name for site in self.sites])
 
     @computed_field
-    @property
     def symbols(self) -> FrozenList[str]:
         """
         Get the atomic symbols of the sites in the structure.
@@ -218,7 +245,6 @@ class StructureBaseModel(BaseModel):
         return FrozenList([site.symbol for site in self.sites])
 
     @computed_field
-    @property
     def positions(self) -> FrozenList[FrozenList[float]]:
         """
         Get the positions of the sites in the structure.
@@ -229,7 +255,6 @@ class StructureBaseModel(BaseModel):
         return FrozenList([site.position for site in self.sites])
 
     @computed_field
-    @property
     def formula(self) -> str:
         """
         Get the chemical formula of the structure.
@@ -275,29 +300,3 @@ class ImmutableStructureModel(StructureBaseModel):
         from_attributes = True
         frozen = True
         arbitrary_types_allowed = True
-
-    @model_validator(mode='before')
-    def check_minimal_requirements(cls, data):
-        """
-        Validate the minimal requirements of the structure.
-
-        Args:
-            data (dict): The input data for the structure.
-
-        Returns:
-            dict: The validated input data.
-
-        Raises:
-            ValueError: If the structure does not meet the minimal requirements.
-        """
-        if not data.get("sites", None):
-            raise ValueError("The structure must contain at least one site")
-        else:
-            _check_valid_sites(data["sites"])
-        if not data.get("cell", None):
-            raise ValueError("The structure must contain a cell")
-        if not data.get("pbc", None):
-            raise ValueError("The structure must contain periodic boundary conditions")
-
-        # check sites not one over the other. see the append_atom method.
-        return data

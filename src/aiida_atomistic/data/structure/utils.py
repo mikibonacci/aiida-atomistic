@@ -1,5 +1,6 @@
 import copy
 import functools
+import re
 
 import numpy as np
 
@@ -272,9 +273,13 @@ def _create_symbols_tuple(symbols):
     this is converted to a tuple with one single element.
     """
     if isinstance(symbols, str):
-        symbols_list = (symbols,)
+        symbols_list = re.sub( r"([A-Z])", r" \1", symbols).split()
     else:
         symbols_list = tuple(symbols)
+
+    for symbol in symbols_list:
+        if symbol not in _valid_symbols:
+            raise ValueError(f"Some or all of the symbols provided are not correct: {symbols_list}")
     return symbols_list
 
 
@@ -820,3 +825,39 @@ def create_automatic_kind_name(symbols, weights):
     if has_vacancies(weights):
         name_string += "X"
     return name_string
+
+def set_symbols_and_weights(new_data):
+        """Set the chemical symbols and the weights for the site.
+
+        .. note:: Note that the kind name remains unchanged.
+        """
+        symbols_tuple = _create_symbols_tuple(new_data["symbol"])
+        weights_tuple = _create_weights_tuple(new_data["weights"])
+        if len(symbols_tuple) != len(weights_tuple):
+            raise ValueError('The number of symbols and weights must coincide.')
+        validate_symbols_tuple(symbols_tuple)
+
+        validate_weights_tuple(weights_tuple, _SUM_THRESHOLD)
+        new_data["alloy"] = symbols_tuple
+        new_data["weights"] = weights_tuple
+
+        if not "mass" in new_data.keys() or np.isnan(new_data.get("mass", None)):
+            # Weighted mass
+            w_sum = sum(weights_tuple)
+            normalized_weights = (i / w_sum for i in weights_tuple)
+            element_masses = (_atomic_masses[sym] for sym in symbols_tuple)
+            new_data["mass"] = sum(i * j for i, j in zip(normalized_weights, element_masses))
+
+def check_is_alloy(data):
+    """Check if the data is an alloy or not.
+
+    :param data: the data to check. The dict of the SiteCore model.
+    :return: True if the data is an alloy, False otherwise.
+    """
+    new_data = copy.deepcopy(data)
+    if len(new_data.get("weights", [1,])) == 1:
+        if new_data["symbol"] not in _valid_symbols:
+            raise ValueError(f'his is not a valid element: {new_data["symbol"]}')
+        return None
+    set_symbols_and_weights(new_data)
+    return new_data

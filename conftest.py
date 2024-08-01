@@ -29,7 +29,7 @@ def supported_properties():
         "charge",
         "magmom",
         "kind_name",
-        "weight",
+        "weights",
     ]
 
 
@@ -48,7 +48,8 @@ def example_structure_dict():
                 "position": [0.0, 0.0, 0.0],
                 "mass": 63.546,
                 "charge": 1.0,
-                "magmom": [0,0,0],
+                "magmom": [0.0,0.0,0.0],
+                "weights": (1,)
             }
         ],
     }
@@ -117,16 +118,31 @@ def example_structure_dict_for_kinds():
         [-1.7391821518091137e-16, 2.8403, 1.7391821518091137e-16],
         [0.0, 0.0, 2.8403]],
         'sites': [{'symbol': 'Fe',
-        'weights': 55.845,
+        'mass': 55.845,
         'position': [0.0, 0.0, 0.0],
         'charge': 0.0,
         'magmom': [2.5, 0.1, 0.1],
         'kind_name': 'Fe'},
         {'symbol': 'Fe',
-        'weights': 55.845,
+        'mass': 55.845,
         'position': [1.42015, 1.42015, 1.4201500000000002],
         'charge': 0.0,
         'magmom': [2.4, 0.1, 0.1],
         'kind_name': 'Fe'}]}
+
+    return structure_dict
+
+@pytest.fixture
+def example_structure_dict_alloy():
+    """
+    Return the dictionary of properties as to be used in the standards tests.
+    """
+    structure_dict ={
+        'pbc': [True, True, True],
+        'cell': [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]],
+        'sites': [{'symbol': 'CuAl',
+        'position': [0.0, 0.0, 0.0],
+        'weights': (0.5,0.5)
+        }],}
 
     return structure_dict

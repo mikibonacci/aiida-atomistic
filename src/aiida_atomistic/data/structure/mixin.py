@@ -446,7 +446,7 @@ class GetterMixin:
             f"mode `{mode}` is invalid, choose from `full`, `reduced` or `fractional`."
         )
 
-    def get_kinds(self, kind_tags=[], exclude=["weight"], custom_thr={}, ready_to_use=False):
+    def get_kinds(self, kind_tags=[], exclude=["weights"], custom_thr={}, ready_to_use=False):
         """
         Get the list of kinds, taking into account all the properties.
         If the list of kinds is already provided--> len(kind_tags)>0, we check the consistency of it
@@ -533,6 +533,7 @@ class GetterMixin:
                 kinds_per_property = self._to_kinds(
                     property_name=single_property, symbols=symbols, thr=thr
                 )
+
                 kind_properties.append(kinds_per_property[0])
                 # I prefer to store again under the key 'value', may be useful in the future
                 kinds_dictionary[single_property] = kinds_per_property[1]

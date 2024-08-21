@@ -1131,6 +1131,8 @@ class GetterMixin:
             )
 
         species = []
+        additional_kwargs = {}
+
         for site in self.properties.sites:
             if hasattr(site, "weight"):
                 weight = site.weight

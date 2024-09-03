@@ -24,6 +24,7 @@ from aiida_atomistic.data.structure.utils import (
 
 
 _MASS_THRESHOLD = 1.0e-3
+_MAGMOM_THRESHOLD = 1.0e-4
 # Threshold to check if the sum is one or not
 _SUM_THRESHOLD = 1.0e-6
 # Default cell
@@ -38,7 +39,7 @@ _default_values = {
     "charge": 0,
     "magmom": [0, 0, 0],
     "hubbard": None,
-    "weight": (1,)
+    "weights": (1,)
 }
 
 class SiteCore(BaseModel):
@@ -53,9 +54,9 @@ class SiteCore(BaseModel):
     kind_name: t.Optional[str]
     position: t.List[float] = Field(min_length=3, max_length=3)
     mass: t.Optional[float] = Field(gt=0)
-    charge: t.Optional[float] = Field(default=0)
-    magmom: t.Optional[t.List[float]] = Field(min_length=3, max_length=3, default=[0.0, 0.0, 0.0])
-    weights: t.Optional[t.Tuple[float, ...]] = Field(default=(1,))
+    charge: t.Optional[float] = Field(default=_default_values["charge"])
+    magmom: t.Optional[t.List[float]] = Field(min_length=3, max_length=3, default=_default_values["magmom"])
+    weights: t.Optional[t.Tuple[float, ...]] = Field(default=_default_values["weights"])
 
     @field_validator('position','magmom')
     def validate_list(cls, v: t.List[float]) -> t.Any:
@@ -79,8 +80,8 @@ class SiteCore(BaseModel):
             data["mass"] = _atomic_masses[data["symbol"]]
         elif not data["mass"]:
             data["mass"] =  _atomic_masses[data["symbol"]]
-        elif data["mass"]<=0:
-            raise ValueError("The mass of an atom must be positive")
+        #elif data["mass"]<=0:
+        #    raise ValueError("The mass of an atom must be positive")
 
         if "kind_name" not in data:
             data["kind_name"] = data["symbol"]
@@ -118,10 +119,10 @@ class SiteCore(BaseModel):
         position: t.Optional[list] = None,
         symbol: t.Optional[t.Literal[_valid_symbols]] = None,
         kind_name: t.Optional[str] = None,
-        charge: t.Optional[float] = None,
-        magmom: t.Optional[t.List[float]] = None,
         mass: t.Optional[float] = None,
-        weights: t.Optional[t.Tuple[float, ...]] = None
+        charge: t.Optional[float] = _default_values["charge"],
+        magmom: t.Optional[t.List[float]] = _default_values["magmom"],
+        weights: t.Optional[t.Tuple[float, ...]] = _default_values["weights"],
         ) -> dict:
         """Convert an ASE atom or dictionary to a dictionary object which the correct format to describe a Site."""
 
@@ -137,7 +138,7 @@ class SiteCore(BaseModel):
             kind_name = symbol + str(aseatom.tag)
             charge = aseatom.charge
             if aseatom.magmom is None:
-                magmom = [0, 0, 0]
+                magmom = _default_values["magmom"]
             elif isinstance(aseatom.magmom, (int, float)):
                 magmom = [aseatom.magmom, 0, 0]
             else:
@@ -152,10 +153,8 @@ class SiteCore(BaseModel):
 
             # all remaining parameters
             kind_name = symbol if kind_name is None else kind_name
-            charge = None if charge is None else charge
-            magmom = None if magmom is None else magmom
             mass = _atomic_masses[symbol] if mass is None else mass
-            weights = None if weights is None else weights
+            weights = _default_values["weights"] if weights is None else weights
 
         new_site = cls(
             symbol=symbol,
@@ -175,6 +174,33 @@ class SiteCore(BaseModel):
         """
         for field, value in new_data.items():
             setattr(self, field, value)
+
+    def get_magmom_coord(self, coord="spherical"):
+        """Get magnetic moment in given coordinate.
+
+        :return: spherical theta and phi in unit rad
+                cartesian x y and z in unit ang
+        """
+        if self.magmom == [0,0,0]:
+            return {"starting_magnetization": 0, "angle1": 0, "angle2": 0} if coord == "spherical" else [0, 0, 0]
+
+        magmom = self.magmom
+        if coord not in ["spherical", "cartesian"]:
+            raise ValueError("`coord` can only be `cartesian` or `spherical`")
+        if coord == "cartesian":
+            magmom_coord = magmom
+        else:
+            r = np.linalg.norm(magmom)
+            if r < _MAGMOM_THRESHOLD:
+                magmom_coord = [0.0, 0.0, 0.0]
+            else:
+                theta = np.arccos(magmom[2]/r) # arccos(z/r)
+                theta = theta / np.pi * 180
+                phi = np.arctan2(magmom[1], magmom[0]) # atan2(y, x)
+                phi = phi / np.pi * 180
+                magmom_coord = (r, theta, phi)
+                # unit always in degree to fit qe inputs.
+        return {"starting_magnetization": magmom_coord[0], "angle1": magmom_coord[1], "angle2": magmom_coord[2]}
 
     def set_automatic_kind_name(self, tag=None):
         """Set the type to a string obtained with the symbols appended one
@@ -207,6 +233,7 @@ class SiteCore(BaseModel):
         tag = None
         atom_dict = self.model_dump()
         atom_dict.pop("kind_name",None)
+        atom_dict.pop("weights",None)
         aseatom = ase.Atom(
             **atom_dict
         )

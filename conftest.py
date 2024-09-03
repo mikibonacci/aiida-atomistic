@@ -133,6 +133,18 @@ def example_structure_dict_for_kinds():
     return structure_dict
 
 @pytest.fixture
+def complex_example_structure_dict_for_kinds():
+    """
+    Return the dictionary of properties as to be used in the standards tests.
+    the structure is here: aiida-atomistic/examples/structure/data/0.199_Mn3Sn.mcif
+    """
+    from pymatgen.core import Structure
+    from aiida_atomistic import StructureData
+    smag1 = Structure.from_file('./examples/structure/data/'+"0.199_Mn3Sn.mcif", primitive=True)
+
+    return StructureData.from_pymatgen(smag1).to_dict()
+
+@pytest.fixture
 def example_structure_dict_alloy():
     """
     Return the dictionary of properties as to be used in the standards tests.

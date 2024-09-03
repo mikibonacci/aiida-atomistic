@@ -66,6 +66,17 @@ class GetterMixin:
     def has_vacancies(self):
         return any(_.has_vacancies for _ in self.properties.sites)
 
+    @property
+    def is_collinear(self):
+        if "magmoms" not in self.get_defined_properties():
+            return False
+        namelist = {"starting_magnetization":{},"angle1":{},"angle2":{}}
+        for site in self.properties.sites:
+            for variable in namelist.keys():
+                namelist[variable][site.kind_name] = site.get_magmom_coord(coord="spherical")[variable]
+        return len(set([namelist["angle1"][site.kind_name] for site in self.properties.sites])) == 1 and \
+            len(set([namelist["angle2"][site.kind_name] for site in self.properties.sites])) == 1
+
     @classmethod
     def from_ase(
         cls,
@@ -91,6 +102,9 @@ class GetterMixin:
 
         if detect_kinds:
             data["sites"] = structure.get_kinds(ready_to_use=True)
+            data["kinds"] = [
+                site["kind_name"] for site in data["sites"]
+            ]
 
         structure = cls(**data)
 
@@ -260,7 +274,10 @@ class GetterMixin:
         structure = cls(**inputs)
 
         if detect_kinds:
-                inputs["sites"] = structure.get_kinds(ready_to_use=True)
+            inputs["sites"] = structure.get_kinds(ready_to_use=True)
+            inputs["kinds"] = [
+                site["kind_name"] for site in inputs["sites"]
+            ]
 
         structure = cls(**inputs)
 
@@ -282,6 +299,9 @@ class GetterMixin:
 
             if detect_kinds:
                 dict_repr["sites"] = self.get_kinds(ready_to_use=True)
+                dict_repr["kinds"] = [
+                    site["kind_name"] for site in dict_repr["sites"]
+                ]
 
             # dict_repr = get_serialized_data(dict_repr)
 
@@ -422,9 +442,8 @@ class GetterMixin:
         """
         import numpy as np
 
-        symbols_list = [
-            self.get_kind(s.kind_name).get_symbols_string() for s in self.properties.sites
-        ]
+        symbols_list = self.properties.symbols
+
         symbols_set = set(symbols_list)
 
         if mode == "full":
@@ -524,7 +543,7 @@ class GetterMixin:
         kinds_dictionary = {"kind_name": {}}
         for single_property in self.properties.sites[0].model_dump().keys():
             if single_property not in ["symbol", "position", "kind_name",] + exclude:
-                # prop = self.get_site_property(single_property)
+                #prop = self.get_site_property(single_property)
                 thr = custom_thr.get(
                     single_property, default_thresholds.get(single_property)
                 )
@@ -542,31 +561,33 @@ class GetterMixin:
         k = k.T
 
         # Step 2:
-        kinds = np.zeros(len(self.get_site_property("symbol")), dtype=int) - 1
-        check_array = np.zeros(len(self.get_site_property("position")), dtype=int)
+        # kinds = np.zeros(len(self.get_site_property("symbol")), dtype=int) - 1
+        check_array = np.zeros(len(self.get_site_property("position")), dtype=int) -1
         kind_names = symbols.tolist()
-        kind_numeration = []
+        kind_numeration = np.zeros_like(check_array, dtype=int)
         for i in range(len(k)):
             # Goes from the first symbol... so the numbers will be from zero to N (Please note: the symbol does not matter: Li0, Cu1... not Li0, Cu0.)
             element = symbols[i]
             diff = k - k[i]
             diff_sum = np.sum(np.abs(diff), axis=1)
 
-            kinds[np.where(diff_sum == 0)[0]] = i
+            # kinds[np.where(diff_sum == 0)[0]] = i
             for where in np.where(diff_sum == 0)[0]:
+                if not check_array[where] == -1:
+                    continue
                 if (
                     f"{element}{i}" in kind_tags
                 ):  # If I encounter the same tag as provided as input or generated here:
-                    kind_numeration.append(i + len(k))
+                    kind_numeration[where] = i + len(k)
                 else:
-                    kind_numeration.append(i)
+                    kind_numeration[where] = i
 
-                kind_names[where] = f"{element}{kind_numeration[-1]}"
+                kind_names[where] = f"{element}{kind_numeration[where]}"
 
                 check_array[where] = i
                 #print(f"site {where} is {element}{kind_numeration[-1]}")
 
-            if len(np.where(kinds == -1)[0]) == 0:
+            if len(np.where(check_array == -1)[0]) == 0:
                 #print(f"search ended at iteration {i}")
                 break
 
@@ -586,7 +607,7 @@ class GetterMixin:
                 "The kinds you provided in the `kind_tags` input are not correct, as properties values are not consistent with them. Please check that this is what you want."
             )
 
-        if ready_to_use:
+        '''if ready_to_use:
             new_sites = []
             for index_kind in kinds_dictionary["index"]:
                 dict_site = {}
@@ -595,6 +616,19 @@ class GetterMixin:
                         dict_site[k] = v[index_kind].tolist() if isinstance(v[index_kind], np.ndarray) else v[index_kind]
                 for value in ["symbol","position"]:
                     dict_site[value] = kinds_dictionary[value][index_kind]
+                new_sites.append(dict_site)
+            return new_sites
+        '''
+        if ready_to_use:
+            new_sites = []
+            for index_global, index_kind in enumerate(kinds_dictionary["index"]):
+                dict_site = {}
+                for k,v in kinds_dictionary.items():
+                    if k not in ["symbol","position","index"]:
+                        dict_site[k] = v[index_kind].tolist() if isinstance(v[index_kind], np.ndarray) else v[index_kind]
+                for value in ["symbol","position"]:
+                    # even for same kind, the position should be different
+                    dict_site[value] = kinds_dictionary[value][index_global]
                 new_sites.append(dict_site)
             return new_sites
 
@@ -658,7 +692,7 @@ class GetterMixin:
 
         return
 
-    def to_legacy(self) -> orm.StructureData:
+    '''def to_legacy(self) -> LegacyStructureData:
 
         """
         Returns: orm.StructureData object, used for backward compatibility.
@@ -668,7 +702,8 @@ class GetterMixin:
 
         aseatoms = self.to_ase()
 
-        return orm.StructureData(ase=aseatoms)
+        return LegacyStructureData(ase=aseatoms)
+    '''
 
     def get_pymatgen_structure(self, **kwargs):
         """Get the pymatgen Structure object with any PBC, provided the cell is not singular.
@@ -914,7 +949,7 @@ class GetterMixin:
         self.properties.pbc = (False, False, False)
 
         for sym, position in atoms:
-            self.add_atom(symbol=sym, position=position)
+            self.add_atom(atom_info={'symbol':sym, 'position':position})
 
     def _adjust_default_cell(
         self, vacuum_factor=1.0, vacuum_addition=10.0, pbc=(False, False, False)
@@ -1315,7 +1350,7 @@ class GetterMixin:
                     continue
                 else:
                     defined_properties.append(prop)
-            elif value is not None:
+            elif value is not _default_values.get(prop, None):
                 defined_properties.append(prop)
 
         return defined_properties

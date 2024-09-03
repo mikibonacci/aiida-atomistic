@@ -237,7 +237,7 @@ def kinds_properties():
 
     return properties
 
-def test_get_kinds(example_structure_dict_for_kinds):
+def test_get_kinds(example_structure_dict_for_kinds, complex_example_structure_dict_for_kinds):
 
     # (1) trivial system, defaults thr
     for structure_type in [StructureData, StructureDataMutable]:
@@ -247,6 +247,22 @@ def test_get_kinds(example_structure_dict_for_kinds):
 
         assert new_structure.properties.kinds == ['Fe0', 'Fe1']
         assert new_structure.properties.magmoms == [[2.5, 0.1, 0.1], [2.4, 0.1, 0.1]]
+
+    # (2) complex system, defaults thr
+    for structure_type in [StructureData, StructureDataMutable]:
+        structure = structure_type(**complex_example_structure_dict_for_kinds)
+
+        new_structure = structure_type(**structure.to_dict(detect_kinds=True))
+
+        assert new_structure.properties.kinds == ['Mn0', 'Mn1', 'Mn0', 'Mn1', 'Mn4', 'Mn4', 'Sn6', 'Sn6']
+        assert new_structure.properties.magmoms == [[1.5000000000000002, 2.598076211353316, 0.0],
+                                                    [-3.0, 0.0, 0.0],
+                                                    [1.5000000000000002, 2.598076211353316, 0.0],
+                                                    [-3.0, 0.0, 0.0],
+                                                    [1.4999999999999998, -2.598076211353316, 0.0],
+                                                    [1.4999999999999998, -2.598076211353316, 0.0],
+                                                    [0.0, 0.0, 0.0],
+                                                    [0.0, 0.0, 0.0]]
 
 def test_alloy(example_structure_dict_alloy):
 

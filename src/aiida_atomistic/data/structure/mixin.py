@@ -81,7 +81,7 @@ class GetterMixin:
     def from_ase(
         cls,
         aseatoms: ASE_ATOMS_TYPE,
-        detect_kinds: bool = False):
+        detect_kinds: bool = True):
         """Load the structure from a ASE object"""
 
         if not has_ase:
@@ -115,7 +115,7 @@ class GetterMixin:
         cls,
         filename,
         format="cif",
-        detect_kinds: bool = False,
+        detect_kinds: bool = True,
         **kwargs):
         """Load the structure from a file"""
 
@@ -127,7 +127,7 @@ class GetterMixin:
     def from_pymatgen(
         cls,
         pymatgen_obj: t.Union[PYMATGEN_MOLECULE, PYMATGEN_STRUCTURE],
-        detect_kinds: bool = False,
+        detect_kinds: bool = True,
         **kwargs,
     ):
         """Load the structure from a pymatgen object.
@@ -150,7 +150,7 @@ class GetterMixin:
         cls,
         mol: PYMATGEN_MOLECULE,
         margin=5,
-        detect_kinds: bool = False,
+        detect_kinds: bool = True,
         ):
         """Load the structure from a pymatgen Molecule object.
 
@@ -180,7 +180,7 @@ class GetterMixin:
     def _from_pymatgen_structure(
         cls,
         struct: PYMATGEN_STRUCTURE,
-        detect_kinds: bool = False,
+        detect_kinds: bool = True,
         ):
         """Load the structure from a pymatgen Structure object.
 
@@ -315,13 +315,17 @@ class GetterMixin:
         """
         return np.array([getattr(this_site, property_name) for this_site in self.properties.sites])
 
-    def get_property_names(self, domain=None):
+    @classmethod
+    def get_property_names(cls, domain=None):
         """get a list of properties
 
         Args:
             domain (str, optional): restrict the domain of the printed property names. Defaults to None, but can be also 'site'.
         """
-        return {'direct': list(self.properties.model_fields.keys()), 'computed': list(self.properties.model_computed_fields.keys()), 'site':list(Site.model_fields.keys())}
+
+        structure = cls(**{'sites':[{'symbol':'Si','position':[3/4, 3/4, 3/4],},],})
+
+        return {'direct': list(structure.properties.model_fields.keys()), 'computed': list(structure.properties.model_computed_fields.keys()), 'site':list(Site.model_fields.keys())}
 
     def get_charges(self,):
         return self.get_site_property("charge")

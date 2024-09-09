@@ -13,7 +13,7 @@ project:
     - file: README.md
     - file: 01-structuredata.ipynb
     - file: 02-tutorial_qe.ipynb
-    - file: 03-plugin_migration_guide.md
+    - file: 03-plugin_migration_guide.ipynb
 
 site:
   template: book-theme

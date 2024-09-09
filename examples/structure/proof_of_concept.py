@@ -48,7 +48,7 @@ structure.to_dict()
 #
 # :::{note}
 # :class: dropdown
-# To visualize the full list of properties, use the `get_property_names` method of the structure classes.
+# To visualize the full list of properties, use the `get_supported_properties` method of the structure classes.
 #
 # The `to_dict` method is nothing else than a wrapper for the *BaseModel* `model_dump` method of the *properties* attribute.
 # :::

@@ -2,7 +2,7 @@ import numpy as np
 
 import typing as t
 import re
-from pydantic import BaseModel, Field, ConfigDict, field_validator, computed_field,model_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 
 try:
     import ase  # noqa: F401
@@ -15,12 +15,7 @@ except ImportError:
     pass
 
 from aiida.common.constants import elements
-
-from aiida_atomistic.data.structure.utils import (
-    create_automatic_kind_name,
-    freeze_nested,
-    check_is_alloy
-)
+from plumpy.utils import AttributesFrozendict
 
 
 _MASS_THRESHOLD = 1.0e-3
@@ -41,6 +36,40 @@ _default_values = {
     "hubbard": None,
     "weights": (1,)
 }
+
+def freeze_nested(obj):
+    """
+    Recursively freezes a nested dictionary or list by converting it into an immutable object.
+
+    Args:
+        obj (dict or list): The nested dictionary or list to be frozen.
+
+    Returns:
+        AttributesFrozendict or FrozenList: The frozen version of the input object.
+
+    """
+    if isinstance(obj, dict):
+        return AttributesFrozendict({k: freeze_nested(v) for k, v in obj.items()})
+    if isinstance(obj, list):
+        return FrozenList(freeze_nested(v) for v in obj)
+    else:
+        return obj
+
+class FrozenList(list):
+    """
+    A subclass of list that represents an immutable list.
+
+    This class overrides the __setitem__ method to raise a ValueError
+    when attempting to modify the list.
+
+    Usage:
+    >>> my_list = FrozenList([1, 2, 3])
+    >>> my_list[0] = 4
+    ValueError: This list is immutable
+    """
+
+    def __setitem__(self, index, value):
+        raise ValueError("This list is immutable")
 
 class SiteCore(BaseModel):
     """This class contains the core information about a given site of the system.
@@ -67,6 +96,7 @@ class SiteCore(BaseModel):
 
     @model_validator(mode='before')
     def check_minimal_requirements(cls, data):
+        from aiida_atomistic.data.structure.utils import check_is_alloy
         if "symbol" not in data and cls._mutable.default:
             data["symbol"] = "H"
 
@@ -209,6 +239,7 @@ class SiteCore(BaseModel):
 
         :param tag: optional tag to be appended to the kind name
         """
+        from aiida_atomistic.data.structure.utils import create_automatic_kind_name
         name_string = create_automatic_kind_name(self.symbol, self.weight)
         if tag is None:
             self.name = name_string

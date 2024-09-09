@@ -17,7 +17,11 @@ try:
 except ImportError:
     pass
 
-from plumpy.utils import AttributesFrozendict
+
+from aiida.engine import calcfunction
+from aiida.orm import List
+
+from .structure import StructureData
 
 # Threshold used to check if the mass of two different Site objects is the same.
 
@@ -84,41 +88,6 @@ class ObservedArray(np.ndarray):
         """
         if obj is None:
             return
-
-def freeze_nested(obj):
-    """
-    Recursively freezes a nested dictionary or list by converting it into an immutable object.
-
-    Args:
-        obj (dict or list): The nested dictionary or list to be frozen.
-
-    Returns:
-        AttributesFrozendict or FrozenList: The frozen version of the input object.
-
-    """
-    if isinstance(obj, dict):
-        return AttributesFrozendict({k: freeze_nested(v) for k, v in obj.items()})
-    if isinstance(obj, list):
-        return FrozenList(freeze_nested(v) for v in obj)
-    else:
-        return obj
-
-class FrozenList(list):
-    """
-    A subclass of list that represents an immutable list.
-
-    This class overrides the __setitem__ method to raise a ValueError
-    when attempting to modify the list.
-
-    Usage:
-    >>> my_list = FrozenList([1, 2, 3])
-    >>> my_list[0] = 4
-    ValueError: This list is immutable
-    """
-
-    def __setitem__(self, index, value):
-        raise ValueError("This list is immutable")
-
 
 def _get_valid_cell(inputcell):
     """Return the cell in a valid format from a generic input.
@@ -861,3 +830,12 @@ def check_is_alloy(data):
         return None
     set_symbols_and_weights(new_data)
     return new_data
+
+
+@calcfunction
+def generate_striped_structure(structure: StructureData, to_be_striped: List) -> StructureData:
+    """Return a stripped version of the input structure."""
+    mutable = structure.to_mutable()
+    for key in to_be_striped:
+        mutable = mutable.clear_property(key)
+    return mutable.to_immutable(detect_kinds=True)

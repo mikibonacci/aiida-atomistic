@@ -7,6 +7,7 @@ from aiida import orm
 from aiida.common.constants import elements
 
 from aiida_atomistic.data.structure.site import SiteMutable as Site
+from aiida_atomistic.data.structure.models import MutableStructureModel
 
 try:
     import ase  # noqa: F401
@@ -31,21 +32,22 @@ except ImportError:
     PYMATGEN_MOLECULE = t.Any
     PYMATGEN_STRUCTURE = t.Any
 
-
-from aiida_atomistic.data.structure.utils import (
-    _get_valid_cell,
-    _get_valid_pbc,
-    atom_kinds_to_html,
-    calc_cell_volume,
-    create_automatic_kind_name,
-    get_formula,
-)
-
 _MASS_THRESHOLD = 1.0e-3
 # Threshold to check if the sum is one or not
 _SUM_THRESHOLD = 1.0e-6
 # Default cell
 _DEFAULT_CELL = ((0, 0, 0),) * 3
+
+_DEFAULT_PROPERTIES = {
+            'pbc',
+            'cell',
+            'sites',
+            'kind_name',
+            'mass',
+            'symbol',
+            'position',
+            'weights',
+        }
 
 _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
@@ -225,6 +227,7 @@ class GetterMixin:
                 )
 
             if has_spin:
+                from aiida_atomistic.data.structure.utils import create_automatic_kind_name
                 symbols = [specie.symbol for specie in species]
                 kind_name = create_automatic_kind_name(symbols, occupations)
 
@@ -316,16 +319,39 @@ class GetterMixin:
         return np.array([getattr(this_site, property_name) for this_site in self.properties.sites])
 
     @classmethod
-    def get_property_names(cls, domain=None):
-        """get a list of properties
+    def get_supported_properties(cls, for_plugin_check=False):
+        """Get a list of properties.
 
         Args:
-            domain (str, optional): restrict the domain of the printed property names. Defaults to None, but can be also 'site'.
+            for_plugin_check (bool, optional): If True, only include properties that need to be checked for a plugin. Defaults to False.
         """
 
-        structure = cls(**{'sites':[{'symbol':'Si','position':[3/4, 3/4, 3/4],},],})
+        properties = {'direct': set(MutableStructureModel.model_fields.keys()), 'computed': set(MutableStructureModel.model_computed_fields.keys()), 'sites': set(Site.model_fields.keys())}
 
-        return {'direct': list(structure.properties.model_fields.keys()), 'computed': list(structure.properties.model_computed_fields.keys()), 'site':list(Site.model_fields.keys())}
+        # in the following `default_properties` we don't put also the `computed`` ones. They depends on the other properties (`direct` and `site`).
+
+
+        if for_plugin_check:
+            for domain in ["direct","sites"]:
+                properties[domain] = set(properties[domain]).difference(_DEFAULT_PROPERTIES)
+
+        return properties
+
+    def check_plugin_support(self, plugin_properties):
+        """
+        Check if the plugin supports the given properties.
+        :param plugin_properties: The supported properties in the plugin.
+        :return: The properties supported by the plugin but not excluded by the mixin.
+        :rtype: set
+        """
+
+        excluded_properties = self.get_supported_properties(for_plugin_check=True)
+        defined_properties = self.get_defined_properties()
+
+        excluded_properties = set(excluded_properties["direct"]).union(excluded_properties["sites"])
+        defined_properties = set(defined_properties["direct"]).union(defined_properties["sites"]).difference(_DEFAULT_PROPERTIES)
+
+        return defined_properties.difference(plugin_properties)
 
     def get_charges(self,):
         return self.get_site_property("charge")
@@ -349,6 +375,7 @@ class GetterMixin:
 
         :return: a float.
         """
+        from aiida_atomistic.data.structure.utils import calc_cell_volume
         return calc_cell_volume(self.properties.cell)
 
     def get_cif(self, converter="ase", store=False, **kwargs):
@@ -426,6 +453,7 @@ class GetterMixin:
             initial order in which the atoms were appended by the user is
             used to group and/or order the symbols in the formula
         """
+        from aiida_atomistic.data.structure.utils import get_formula
         symbol_list = [s.symbol for s in self.properties.sites]
 
         return get_formula(symbol_list, mode=mode, separator=separator)
@@ -746,6 +774,7 @@ class GetterMixin:
     def _validate(self):
         """Performs some standard validation tests."""
         from aiida.common.exceptions import ValidationError
+        from aiida_atomistic.data.structure.utils import _get_valid_cell, _get_valid_pbc
 
         super()._validate()
 
@@ -828,6 +857,7 @@ class GetterMixin:
     def _prepare_chemdoodle(self, main_file_name=""):
         """Write the given structure to a string of format required by ChemDoodle."""
         from itertools import product
+        from aiida_atomistic.data.structure.utils import atom_kinds_to_html
 
         import numpy as np
 
@@ -1226,6 +1256,7 @@ class GetterMixin:
             vectors = cell[pbc]
             retdict["value"] = np.linalg.norm(np.cross(vectors[0], vectors[1]))
         elif dim == 3:
+            from aiida_atomistic.data.structure.utils import calc_cell_volume
             retdict["value"] = calc_cell_volume(cell)
 
         return retdict
@@ -1340,22 +1371,28 @@ class GetterMixin:
         Get the defined properties of the structure.
 
         Args:
-            exclude_defaults (bool): Whether to exclude properties with default values.
+            exclude_defaults (bool): Whether to exclude properties with default values (not set by the user).
 
         Returns:
             list: A list of defined properties.
         """
-        defined_properties = []
+        defined_properties = {"direct":[], "computed":[],"sites":[]}
+        supported_properties = self.get_supported_properties()
 
         for prop, value in self.properties.model_dump(exclude_defaults=exclude_defaults).items():
             if isinstance(value, list):
                 if value.count(_default_values.get(prop, None)) == len(value):
                     # Skip charges, magmoms if not defined for any site.
                     continue
+                elif prop == "sites":
+                    site_properties = set() # I check on several sites
+                    for site_prop in value:
+                        site_properties = site_properties.union(site_prop.keys())
+                    defined_properties["sites"] = list(site_properties)
                 else:
-                    defined_properties.append(prop)
+                    defined_properties["direct" if prop in supported_properties["direct"] else "computed"].append(prop)
             elif value is not _default_values.get(prop, None):
-                defined_properties.append(prop)
+                defined_properties["direct" if prop in supported_properties["direct"] else "computed"].append(prop)
 
         return defined_properties
 
@@ -1363,11 +1400,13 @@ class SetterMixin:
 
     def set_pbc(self, value):
         """Set the periodic boundary conditions."""
+        from aiida_atomistic.data.structure.utils import _get_valid_pbc
         the_pbc = _get_valid_pbc(value)
         self.properties.pbc = the_pbc
 
     def set_cell(self, value):
         """Set the cell."""
+        from aiida_atomistic.data.structure.utils import _get_valid_cell
         the_cell = _get_valid_cell(value)
         self.properties.cell = the_cell
 
@@ -1408,6 +1447,33 @@ class SetterMixin:
             for site_index in range(len(value)):
                 self.update_site(site_index, kind_name=value[site_index])
 
+    def set_site_property(self, name: str, values: t.List):
+        """
+        Set a property for each site in the structure.
+
+        :param name (str): The name of the property.
+        :param values (list): The values of the property for each site.
+        """
+
+        for site, value in zip(self.properties.sites,values):
+            setattr(site, name, value)
+
+    def set_kind_property(self, name: str, values, kind_name):
+        """
+        Set a property for all sites of a given kind.
+
+        Parameters:
+        :param name (str): The name of the property.
+        :param values: The values to set for each site.
+        :param kind_name (str): The name of the kind to filter sites.
+
+        Returns:
+        None
+        """
+        for site in self.properties.sites:
+            if site.kind_name == kind_name:
+                setattr(site, name, values)
+
     def add_atom(self, atom_info, index=-1):
 
         new_site = Site.atom_to_site(**atom_info)
@@ -1442,3 +1508,15 @@ class SetterMixin:
 
     def clear_sites(self,):
         self.properties.sites = []
+
+    def clear_property(self, property_name):
+        """Clear the given property."""
+        mutable_dict = self.to_dict()
+        defined_properties = self.get_defined_properties()
+        if property_name in defined_properties["direct"]:
+            mutable_dict.pop(property_name, None)
+        elif property_name in defined_properties["sites"]:
+            for site in mutable_dict["sites"]:
+                site.pop(property_name, None)
+
+        return self.__class__(**mutable_dict)

@@ -36,19 +36,6 @@ except ImportError:
     PYMATGEN_MOLECULE = t.Any
     PYMATGEN_STRUCTURE = t.Any
 
-
-from aiida_atomistic.data.structure.utils import (
-    _get_valid_cell,
-    _get_valid_pbc,
-    atom_kinds_to_html,
-    calc_cell_volume,
-    create_automatic_kind_name,
-    get_formula,
-    ObservedArray,
-    FrozenList,
-    freeze_nested,
-)
-
 _MASS_THRESHOLD = 1.0e-3
 # Threshold to check if the sum is one or not
 _SUM_THRESHOLD = 1.0e-6
@@ -73,7 +60,7 @@ class StructureData(Data, GetterMixin):
 
         defined_properties = self.get_defined_properties() # exclude the default ones. We do not need to store them into the db.
         for prop, value in self.properties.model_dump(exclude_defaults=True).items():
-            if prop in defined_properties:
+            if prop in defined_properties["direct"]+defined_properties["computed"]+["sites"]:
                 self.base.attributes.set(prop, value)
 
     @property

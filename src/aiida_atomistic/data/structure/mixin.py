@@ -70,7 +70,7 @@ class GetterMixin:
 
     @property
     def is_collinear(self):
-        if "magmoms" not in self.get_defined_properties():
+        if "magmoms" not in self.get_defined_properties()["computed"]:
             return False
         namelist = {"starting_magnetization":{},"angle1":{},"angle2":{}}
         for site in self.properties.sites:

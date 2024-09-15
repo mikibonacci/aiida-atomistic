@@ -60,7 +60,7 @@ class StructureData(Data, GetterMixin):
 
         defined_properties = self.get_defined_properties() # exclude the default ones. We do not need to store them into the db.
         for prop, value in self.properties.model_dump(exclude_defaults=True).items():
-            if prop in defined_properties["direct"]+defined_properties["computed"]+["sites"]:
+            if prop in defined_properties["direct"].union(defined_properties["computed"]).union({"sites"}):
                 self.base.attributes.set(prop, value)
 
     @property

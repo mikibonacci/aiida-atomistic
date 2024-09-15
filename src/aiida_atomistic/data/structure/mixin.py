@@ -1368,15 +1368,18 @@ class GetterMixin:
 
     def get_defined_properties(self, exclude_defaults=True):
         """
-        Get the defined properties of the structure.
+            Retrieve the defined properties of the structure, categorized into direct, computed, and site-specific properties.
 
-        Args:
-            exclude_defaults (bool): Whether to exclude properties with default values (not set by the user).
+            Args:
+                exclude_defaults (bool): If True, properties with default values will be excluded from the result.
 
-        Returns:
-            list: A list of defined properties.
+            Returns:
+                dict: A dictionary with keys "direct", "computed", and "sites". Each key maps to a set of property names:
+                    - "direct": Properties directly defined in the structure.
+                    - "computed": Properties that are computed based on the structure.
+                    - "sites": Properties defined for individual sites within the structure.
         """
-        defined_properties = {"direct":[], "computed":[],"sites":[]}
+        defined_properties = {"direct":set(), "computed":set(),"sites":set()}
         supported_properties = self.get_supported_properties()
 
         for prop, value in self.properties.model_dump(exclude_defaults=exclude_defaults).items():
@@ -1388,11 +1391,11 @@ class GetterMixin:
                     site_properties = set() # I check on several sites
                     for site_prop in value:
                         site_properties = site_properties.union(site_prop.keys())
-                    defined_properties["sites"] = list(site_properties)
+                    defined_properties["sites"] = site_properties
                 else:
-                    defined_properties["direct" if prop in supported_properties["direct"] else "computed"].append(prop)
+                    defined_properties["direct" if prop in supported_properties["direct"] else "computed"].add(prop)
             elif value is not _default_values.get(prop, None):
-                defined_properties["direct" if prop in supported_properties["direct"] else "computed"].append(prop)
+                defined_properties["direct" if prop in supported_properties["direct"] else "computed"].add(prop)
 
         return defined_properties
 

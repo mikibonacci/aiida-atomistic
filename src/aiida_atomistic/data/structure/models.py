@@ -64,7 +64,7 @@ class StructureBaseModel(BaseModel):
     """
 
     pbc: t.Optional[t.List[bool]] = Field(min_length=3, max_length=3, default = None)
-    cell: t.Optional[t.List[t.List[float]]] = Field(default  = None)
+    cell: t.Optional[t.List[t.List[float]]] = Field(default  = _DEFAULT_CELL)
     custom: t.Optional[dict] = Field(default=None)
 
     symbols: t.List[str] = Field(default=["H"])
@@ -178,35 +178,49 @@ class StructureBaseModel(BaseModel):
 
         _check_valid_sites(data["positions"])
 
-        if data.get("symbols", None):
-            if not data.get("cell", None):
-                # raise ValueError("The structure must contain a cell")
-                #warnings.warn("using default cell")
-                data["cell"] = _DEFAULT_CELL
-            if not data.get("pbc", None):
-                # raise ValueError("The structure must contain periodic boundary conditions")
-                data["pbc"] = [True,True,True]
+        if not data.get("cell", None):
+            # raise ValueError("The structure must contain a cell")
+            #warnings.warn("using default cell")
+            data["cell"] = _DEFAULT_CELL
+        if not data.get("pbc", None):
+            # raise ValueError("The structure must contain periodic boundary conditions")
+            data["pbc"] = [True,True,True]
 
-            # site properties: symbols, kinds, masses, charges, magmoms, weights
-            if not data.get("kinds"):
-                data["kinds"] = data["symbols"]
-            else:
-                if len(data["kinds"]) != len(data['symbols']):
-                    raise ValueError("Length of kinds does not match the number of symbols")
-            if not data.get("masses"):
-                data["masses"] = [_atomic_masses[s] for s in data["symbols"]]
-            else:
-                if len(data["masses"]) != len(data['symbols']):
-                    raise ValueError("Length of masses does not match the number of symbols")
+        # site properties: symbols, kinds, masses, charges, magmoms, weights
+        if not data.get("kinds"):
+            data["kinds"] = data["symbols"]
+        else:
+            if len(data["kinds"]) != len(data['symbols']):
+                raise ValueError("Length of kinds does not match the number of symbols")
+        if not data.get("masses"):
+            data["masses"] = [_atomic_masses[s] for s in data["symbols"]]
+        else:
+            if len(data["masses"]) != len(data['symbols']):
+                raise ValueError("Length of masses does not match the number of symbols")
 
-            for prop in ['positions','charges', 'magmoms', 'weights']:
-                if data.get(prop) is None:
-                    data[prop] = [_DEFAULT_VALUES[prop]] * len(data['symbols'])
-                else:
-                    if len(data[prop]) != len(data['symbols']):
-                        raise ValueError(f"Length of {prop} does not match the number of symbols")
+        for prop in ['positions','charges', 'magmoms', 'weights']:
+            if data.get(prop) is None:
+                data[prop] = [_DEFAULT_VALUES[prop]] * len(data['symbols'])
+            else:
+                if len(data[prop]) != len(data['symbols']):
+                    raise ValueError(f"Length of {prop} does not match the number of symbols")
 
         return data
+
+    def validate_instance(self):
+        """
+        Validate the instance of the structure.
+
+        This method validates the instance attributes of the structure model.
+
+        Raises:
+            ValueError: If any of the instance attributes are invalid.
+        """
+
+        # Validate minimal requirements
+        self.check_minimal_requirements(self.__dict__)
+        self.sites
+        return
 
     @computed_field
     def cell_volume(self) -> float:
@@ -289,7 +303,7 @@ class StructureBaseModel(BaseModel):
         transformed_dict = cls.transform_sites_list(kwargs["sites"])
         new_dict.update(transformed_dict)
 
-        return cls(**transformed_dict)
+        return cls(**new_dict)
 
 class MutableStructureModel(StructureBaseModel):
     """

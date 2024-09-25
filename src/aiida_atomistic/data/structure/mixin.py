@@ -99,9 +99,6 @@ class GetterMixin:
 
         if detect_kinds:
             data["sites"] = structure.get_kinds(ready_to_use=True)
-            data["kinds"] = [
-                site["kinds"] for site in data["sites"]
-            ]
 
         structure = cls(**data)
 
@@ -261,7 +258,7 @@ class GetterMixin:
                 "masses": site.species.weight,
                 "positions": site.coords.tolist(),
                 "charges": site.properties.get("charge", 0.0),
-                'magmoms': site.properties.get("magmom").moment if "magmoms" in site.properties.keys() else [0,0,0]
+                'magmoms': site.properties.get("magmom").moment if "magmom" in site.properties.keys() else [0,0,0]
             }
 
             if kind_name is not None:
@@ -753,58 +750,6 @@ class GetterMixin:
         """
         return self._get_object_pymatgen_molecule()
 
-    def _validate(self):
-        """Performs some standard validation tests."""
-        from aiida.common.exceptions import ValidationError
-        from aiida_atomistic.data.structure.utils import _get_valid_cell, _get_valid_pbc
-
-        super()._validate()
-
-        try:
-            _get_valid_cell(self.properties.cell)
-        except ValueError as exc:
-            raise ValidationError(f"Invalid cell: {exc}")
-
-        try:
-            _get_valid_pbc(self.properties.pbc)
-        except ValueError as exc:
-            raise ValidationError(f"Invalid periodic boundary conditions: {exc}")
-
-        self._validate_dimensionality()
-
-        try:
-            # This will try to create the kinds objects
-            kinds = set(self.get_site_property("kinds"))
-        except ValueError as exc:
-            raise ValidationError(f"Unable to validate the kinds: {exc}")
-
-        from collections import Counter
-
-        counts = Counter([k for k in kinds])
-        for count in counts:
-            if counts[count] != 1:
-                raise ValidationError(
-                    f"Kind with name '{count}' appears {counts[count]} times instead of only one"
-                )
-
-        try:
-            # This will try to create the sites objects
-            sites = self.properties.sites
-        except ValueError as exc:
-            raise ValidationError(f"Unable to validate the sites: {exc}")
-
-        for site in sites:
-            if site.kinds not in kinds:
-                raise ValidationError(
-                    f"A site has kind {site.kinds}, but no specie with that name exists"
-                )
-
-        kinds_without_sites = {k for k in kinds} - {s.kinds for s in sites}
-        if kinds_without_sites:
-            raise ValidationError(
-                f"The following kinds are defined, but there are no sites with that kind: {list(kinds_without_sites)}"
-            )
-
     def _prepare_xsf(self, main_file_name=""):
         """Write the given structure to a string of format XSF (for XCrySDen)."""
         if self.is_alloy or self.has_vacancies:
@@ -1127,8 +1072,8 @@ class GetterMixin:
             for site in self.properties.sites:
                 kind = site.kinds
                 specie = Specie(
-                    site.symbol,
-                    site.charge,
+                    site.symbols,
+                    site.charges,
                 )  # spin)
                 species.append(specie)
             # if any(
@@ -1186,13 +1131,13 @@ class GetterMixin:
         additional_kwargs = {}
 
         for site in self.properties.sites:
-            if hasattr(site, "weight"):
-                weight = site.weight
+            if hasattr(site, "weights"):
+                weight = site.weights
             else:
                 weight = 1
-            species.append({site.symbol: weight})
+            species.append({site.symbols: weight})
 
-        positions = [list(site.position) for site in self.properties.sites]
+        positions = [list(site.positions) for site in self.properties.sites]
         mol =  Molecule(species, positions)
 
         additional_kwargs["site_properties"] = {
@@ -1360,6 +1305,17 @@ class GetterMixin:
             return_undefined=True))
 
 class SetterMixin:
+
+    def _validate_properties(self,):
+        """Validate the structure.
+
+        This method performs a series of checks to ensure that the structure's properties are consistent and valid.
+        It raises a ValueError if any inconsistency is found.
+
+        Returns:
+            None
+        """
+        return self.properties.validate_instance()
 
     def set_pbc(self, value):
         """Set the periodic boundary conditions."""

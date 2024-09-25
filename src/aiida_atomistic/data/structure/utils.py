@@ -800,7 +800,10 @@ def set_symbols_and_weights(new_data):
 
         .. note:: Note that the kind name remains unchanged.
         """
-        symbols_tuple = _create_symbols_tuple(new_data["symbols"])
+        symbols_tuple = _create_symbols_tuple(new_data["symbols"]) if isinstance(new_data["symbols"], str) else new_data["symbols"]
+        for symbol in symbols_tuple:
+            if symbol not in _valid_symbols:
+                raise ValueError(f'This is not a valid element: {symbol}')
         weights_tuple = _create_weights_tuple(new_data["weights"])
         if len(symbols_tuple) != len(weights_tuple):
             raise ValueError('The number of symbols and weights must coincide.')
@@ -810,7 +813,7 @@ def set_symbols_and_weights(new_data):
         new_data["alloy"] = symbols_tuple
         new_data["weights"] = weights_tuple
 
-        if "masses" not in new_data.keys() or np.isnan(new_data.get("masses", None)):
+        if "masses" not in new_data.keys() or np.isnan(new_data.get("masses", None)) or new_data.get("masses", None) == 0:
             # Weighted mass
             w_sum = sum(weights_tuple)
             normalized_weights = (i / w_sum for i in weights_tuple)
@@ -826,7 +829,7 @@ def check_is_alloy(data):
     new_data = copy.deepcopy(data)
     if len(new_data.get("weights", [1,])) == 1:
         if new_data["symbols"] not in _valid_symbols:
-            raise ValueError(f'his is not a valid element: {new_data["symbols"]}')
+            raise ValueError(f'This is not a valid element: {new_data["symbols"]}')
         return None
     set_symbols_and_weights(new_data)
     return new_data

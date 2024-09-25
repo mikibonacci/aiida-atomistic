@@ -79,7 +79,7 @@ class SiteCore(BaseModel):
     """
     model_config = ConfigDict(from_attributes = True,  frozen = False,  arbitrary_types_allowed = True)
 
-    symbols: t.Optional[str] # validation is done in the check_is_alloy
+    symbols: t.Optional[t.Union[str, t.List[str]]] # validation is done in the check_is_alloy
     kinds: t.Optional[str]
     positions: t.List[float] = Field(min_length=3, max_length=3)
     masses: t.Optional[float] = Field(gt=0)

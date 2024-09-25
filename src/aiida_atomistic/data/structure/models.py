@@ -43,6 +43,7 @@ _SUM_THRESHOLD = 1.0e-6
 _DEFAULT_CELL = [[0.0, 0.0, 0.0]] * 3
 
 _DEFAULT_VALUES = {
+    "kinds": "",
     "masses": 0,
     "charges": 0,
     "magmoms": [0, 0, 0],
@@ -67,7 +68,7 @@ class StructureBaseModel(BaseModel):
     cell: t.Optional[t.List[t.List[float]]] = Field(default  = _DEFAULT_CELL)
     custom: t.Optional[dict] = Field(default=None)
 
-    symbols: t.List[str] = Field(default=["H"])
+    symbols: t.Union[t.List[str], t.List[t.List[str]]] = Field(default=["H"])
     positions: t.List[t.List[float]] = Field(default=[[0,0,0]])
 
     kinds: t.List[str] = Field(default=None)
@@ -193,7 +194,8 @@ class StructureBaseModel(BaseModel):
             if len(data["kinds"]) != len(data['symbols']):
                 raise ValueError("Length of kinds does not match the number of symbols")
         if not data.get("masses"):
-            data["masses"] = [_atomic_masses[s] for s in data["symbols"]]
+            data["masses"] = [_atomic_masses[s] if s in _atomic_masses.keys() else _DEFAULT_VALUES["masses"]
+                              for s in data["symbols"]]
         else:
             if len(data["masses"]) != len(data['symbols']):
                 raise ValueError("Length of masses does not match the number of symbols")
@@ -204,6 +206,26 @@ class StructureBaseModel(BaseModel):
             else:
                 if len(data[prop]) != len(data['symbols']):
                     raise ValueError(f"Length of {prop} does not match the number of symbols")
+
+        # trying to detect alloys
+        if any(mass == 0 for mass in data["masses"]):
+            from aiida_atomistic.data.structure.utils import check_is_alloy
+            for idx, (symbol, mass, weight) in enumerate(zip(data["symbols"], data["masses"], data["weights"])):
+                if mass == 0:
+                    new_data = check_is_alloy(
+                        {
+                            "symbols": symbol,
+                            "masses": mass,
+                            "weights": weight,
+                            }
+                        )
+                    new_data.pop("alloy", None)
+                    new_data["kinds"] = ''.join(symbol) if isinstance(symbol, list) else symbol
+                    # I could do the following also inside the `check_is_alloy` function, but I do it
+                    # here to be more clear on what we do. We provide symbols as joined strings, as the kinds.
+                    new_data["symbols"] = new_data["kinds"]
+                    for key, value in new_data.items():
+                        data[key][idx] = value
 
         return data
 

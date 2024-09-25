@@ -70,7 +70,7 @@ class GetterMixin:
 
     @property
     def is_collinear(self):
-        if "magmoms" not in self.get_defined_properties()["computed"]:
+        if "magmoms" not in self.get_defined_properties():
             return False
         namelist = {"starting_magnetization":{},"angle1":{},"angle2":{}}
         for site in self.properties.sites:
@@ -262,11 +262,11 @@ class GetterMixin:
                 kind_name = site.label
 
             site_info = {
-                "symbol": site.specie.symbol,
-                "mass": site.species.weight,
-                "position": site.coords.tolist(),
-                "charge": site.properties.get("charge", 0.0),
-                'magmom': site.properties.get("magmom").moment if "magmom" in site.properties.keys() else [0,0,0]
+                "symbols": site.specie.symbol,
+                "masses": site.species.weight,
+                "positions": site.coords.tolist(),
+                "charges": site.properties.get("charge", 0.0),
+                'magmoms': site.properties.get("magmom").moment if "magmoms" in site.properties.keys() else [0,0,0]
             }
 
             if kind_name is not None:
@@ -550,11 +550,11 @@ class GetterMixin:
         # should be this:
         # symbols = self.base.attributes.get("_property_attributes")['symbols']['value']
         # However, for now I do not let the kinds to be automatically generated when we initialise the structure:
-        symbols = self.get_site_property("symbol")
+        symbols = self.get_site_property("symbols")
         default_thresholds = {
-            "charge": 0.1,
-            "mass": 1e-4,
-            "magmom": 1e-4, # _MAGMOM_THRESHOLD
+            "charges": 0.1,
+            "masses": 1e-4,
+            "magmoms": 1e-4, # _MAGMOM_THRESHOLD
         }
 
         list_tags = []
@@ -574,7 +574,7 @@ class GetterMixin:
         kind_properties = []
         kinds_dictionary = {"kinds": {}}
         for single_property in self.properties.sites[0].model_dump().keys():
-            if single_property not in ["symbol", "position", "kinds",] + exclude:
+            if single_property not in ["symbols", "positions", "kinds",] + exclude:
                 #prop = self.get_site_property(single_property)
                 thr = custom_thr.get(
                     single_property, default_thresholds.get(single_property)
@@ -594,7 +594,7 @@ class GetterMixin:
 
         # Step 2:
         # kinds = np.zeros(len(self.get_site_property("symbol")), dtype=int) - 1
-        check_array = np.zeros(len(self.get_site_property("position")), dtype=int) -1
+        check_array = np.zeros(len(self.get_site_property("positions")), dtype=int) -1
         kind_names = symbols.tolist()
         kind_numeration = np.zeros_like(check_array, dtype=int)
         for i in range(len(k)):
@@ -630,8 +630,8 @@ class GetterMixin:
         ]
 
         kinds_dictionary["index"] = kind_numeration
-        kinds_dictionary["symbol"] = symbols.tolist()
-        kinds_dictionary["position"] = self.get_site_property("position").tolist()
+        kinds_dictionary["symbols"] = symbols.tolist()
+        kinds_dictionary["positions"] = self.get_site_property("positions").tolist()
 
         # Step 4: check on the kind_tags consistency with the properties value.
         if check_kinds and not np.array_equal(check_array, array_tags):
@@ -656,9 +656,9 @@ class GetterMixin:
             for index_global, index_kind in enumerate(kinds_dictionary["index"]):
                 dict_site = {}
                 for k,v in kinds_dictionary.items():
-                    if k not in ["symbol","position","index"]:
+                    if k not in ["symbols","positions","index"]:
                         dict_site[k] = v[index_kind].tolist() if isinstance(v[index_kind], np.ndarray) else v[index_kind]
-                for value in ["symbol","position"]:
+                for value in ["symbols","positions"]:
                     # even for same kind, the position should be different
                     dict_site[value] = kinds_dictionary[value][index_global]
                 new_sites.append(dict_site)

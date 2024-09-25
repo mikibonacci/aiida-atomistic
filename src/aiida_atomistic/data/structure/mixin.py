@@ -42,11 +42,6 @@ _DEFAULT_PROPERTIES = {
             'pbc',
             'cell',
             'sites',
-            'kinds',
-            'masses',
-            'symbols',
-            'positions',
-            'weights',
         }
 
 _valid_symbols = tuple(i["symbol"] for i in elements.values())
@@ -319,23 +314,10 @@ class GetterMixin:
         return np.array([getattr(this_site, property_name) for this_site in self.properties.sites])
 
     @classmethod
-    def get_supported_properties(cls, for_plugin_check=False):
-        """Get a list of properties.
-
-        Args:
-            for_plugin_check (bool, optional): If True, only include properties that need to be checked for a plugin. Defaults to False.
+    def get_supported_properties(cls):
+        """Get a list of properties that can be set for this structure.
         """
-
-        properties = {'direct': set(MutableStructureModel.model_fields.keys()), 'computed': set(MutableStructureModel.model_computed_fields.keys()), 'sites': set(Site.model_fields.keys())}
-
-        # in the following `default_properties` we don't put also the `computed`` ones. They depends on the other properties (`direct` and `site`).
-
-
-        if for_plugin_check:
-            for domain in ["direct","sites"]:
-                properties[domain] = set(properties[domain]).difference(_DEFAULT_PROPERTIES)
-
-        return properties
+        return set(MutableStructureModel.model_fields.keys())
 
     def check_plugin_support(self, plugin_properties):
         """
@@ -345,11 +327,11 @@ class GetterMixin:
         :rtype: set
         """
 
-        excluded_properties = self.get_supported_properties(for_plugin_check=True)
+        excluded_properties = self.get_supported_properties()
         defined_properties = self.get_defined_properties()
 
-        excluded_properties = set(excluded_properties["direct"]).union(excluded_properties["sites"])
-        defined_properties = set(defined_properties["direct"]).union(defined_properties["sites"]).difference(_DEFAULT_PROPERTIES)
+        excluded_properties = set(excluded_properties).union(excluded_properties)
+        defined_properties = set(defined_properties).union(defined_properties).difference(_DEFAULT_PROPERTIES)
 
         return defined_properties.difference(plugin_properties)
 
@@ -1372,32 +1354,10 @@ class GetterMixin:
 
             Args:
                 exclude_defaults (bool): If True, properties with default values will be excluded from the result.
-
-            Returns:
-                dict: A dictionary with keys "direct", "computed", and "sites". Each key maps to a set of property names:
-                    - "direct": Properties directly defined in the structure.
-                    - "computed": Properties that are computed based on the structure.
-                    - "sites": Properties defined for individual sites within the structure.
         """
-        defined_properties = {"direct":set(), "computed":set(),"sites":set()}
-        supported_properties = self.get_supported_properties()
-
-        for prop, value in self.properties.model_dump(exclude_defaults=exclude_defaults).items():
-            if isinstance(value, list):
-                if value.count(_default_values.get(prop, None)) == len(value):
-                    # Skip charges, magmoms if not defined for any site.
-                    continue
-                elif prop == "sites":
-                    site_properties = set() # I check on several sites
-                    for site_prop in value:
-                        site_properties = site_properties.union(site_prop.keys())
-                    defined_properties["sites"] = site_properties
-                else:
-                    defined_properties["direct" if prop in supported_properties["direct"] else "computed"].add(prop)
-            elif value is not _default_values.get(prop, None):
-                defined_properties["direct" if prop in supported_properties["direct"] else "computed"].add(prop)
-
-        return defined_properties
+        return self.get_supported_properties().difference(self.properties.transform_sites_list(
+            self.properties.model_dump(exclude_defaults=True)["sites"],
+            return_undefined=True))
 
 class SetterMixin:
 

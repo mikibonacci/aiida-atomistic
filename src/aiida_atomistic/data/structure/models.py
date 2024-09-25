@@ -264,6 +264,33 @@ class StructureBaseModel(BaseModel):
         from aiida_atomistic.data.structure.utils import get_formula
         return get_formula(self.symbols)
 
+
+    @staticmethod
+    def transform_sites_list(sites = [], return_undefined=False):
+        fields_list = SiteImmutable.model_fields
+        fields_set = set()
+        transformed_dict = {k: [] for k in fields_list.keys()}
+        for item in sites:
+            for key in fields_list.keys():
+                transformed_dict[key].append(item[key] if key in item else _DEFAULT_VALUES[key])
+                if key not in item and return_undefined:
+                    fields_set.add(key)
+
+
+        return transformed_dict if not return_undefined else fields_set
+
+    @classmethod
+    def from_sites_specs(cls, **kwargs):
+        if "sites" not in kwargs:
+            raise ValueError("The 'sites' key must be present in the input data")
+
+        new_dict = copy.deepcopy(kwargs)
+        new_dict.pop("sites")
+        transformed_dict = cls.transform_sites_list(kwargs["sites"])
+        new_dict.update(transformed_dict)
+
+        return cls(**transformed_dict)
+
 class MutableStructureModel(StructureBaseModel):
     """
     A mutable structure model that extends the StructureBaseModel class.

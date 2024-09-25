@@ -57,7 +57,10 @@ class StructureData(Data, GetterMixin):
 
     def __init__(self, **kwargs):
 
-        self._properties = ImmutableStructureModel(**kwargs)
+        if "sites" in kwargs:
+            self._properties = ImmutableStructureModel.from_sites_specs(**kwargs)
+        else:
+            self._properties = ImmutableStructureModel(**kwargs)
         super().__init__()
 
         defined_properties = self.get_defined_properties() # exclude the default ones. We do not need to store them into the db.
@@ -81,7 +84,10 @@ class StructureDataMutable(GetterMixin, SetterMixin):
 
     def __init__(self, **kwargs):
 
-        self._properties = MutableStructureModel(**kwargs)
+        if "sites" in kwargs:
+            self._properties = MutableStructureModel.from_sites_specs(**kwargs)
+        else:
+            self._properties = MutableStructureModel(**kwargs)
 
     @property
     def properties(self):

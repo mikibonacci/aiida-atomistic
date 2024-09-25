@@ -6,7 +6,7 @@ import numpy as np
 from aiida import orm
 from aiida.common.constants import elements
 
-from aiida_atomistic.data.structure.site import SiteMutable as Site
+from aiida_atomistic.data.structure.site import SiteImmutable as Site
 from aiida_atomistic.data.structure.models import MutableStructureModel
 
 try:
@@ -42,10 +42,10 @@ _DEFAULT_PROPERTIES = {
             'pbc',
             'cell',
             'sites',
-            'kind_name',
-            'mass',
-            'symbol',
-            'position',
+            'kinds',
+            'masses',
+            'symbols',
+            'positions',
             'weights',
         }
 
@@ -75,9 +75,9 @@ class GetterMixin:
         namelist = {"starting_magnetization":{},"angle1":{},"angle2":{}}
         for site in self.properties.sites:
             for variable in namelist.keys():
-                namelist[variable][site.kind_name] = site.get_magmom_coord(coord="spherical")[variable]
-        return len(set([namelist["angle1"][site.kind_name] for site in self.properties.sites])) == 1 and \
-            len(set([namelist["angle2"][site.kind_name] for site in self.properties.sites])) == 1
+                namelist[variable][site.kinds] = site.get_magmom_coord(coord="spherical")[variable]
+        return len(set([namelist["angle1"][site.kinds] for site in self.properties.sites])) == 1 and \
+            len(set([namelist["angle2"][site.kinds] for site in self.properties.sites])) == 1
 
     @classmethod
     def from_ase(
@@ -105,7 +105,7 @@ class GetterMixin:
         if detect_kinds:
             data["sites"] = structure.get_kinds(ready_to_use=True)
             data["kinds"] = [
-                site["kind_name"] for site in data["sites"]
+                site["kinds"] for site in data["sites"]
             ]
 
         structure = cls(**data)
@@ -257,7 +257,7 @@ class GetterMixin:
         for site in sites_collection:
 
             if "kind_name" in site.properties:
-                kind_name = site.properties["kind_name"]
+                kind_name = site.properties["kinds"]
             else:
                 kind_name = site.label
 
@@ -270,7 +270,7 @@ class GetterMixin:
             }
 
             if kind_name is not None:
-                site_info["kind_name"] = kind_name.replace("+", "").replace("-", "")
+                site_info["kinds"] = kind_name.replace("+", "").replace("-", "")
 
             inputs["sites"].append(site_info)
 
@@ -279,7 +279,7 @@ class GetterMixin:
         if detect_kinds:
             inputs["sites"] = structure.get_kinds(ready_to_use=True)
             inputs["kinds"] = [
-                site["kind_name"] for site in inputs["sites"]
+                site["kinds"] for site in inputs["sites"]
             ]
 
         structure = cls(**inputs)
@@ -303,7 +303,7 @@ class GetterMixin:
             if detect_kinds:
                 dict_repr["sites"] = self.get_kinds(ready_to_use=True)
                 dict_repr["kinds"] = [
-                    site["kind_name"] for site in dict_repr["sites"]
+                    site["kinds"] for site in dict_repr["sites"]
                 ]
 
             # dict_repr = get_serialized_data(dict_repr)
@@ -360,7 +360,7 @@ class GetterMixin:
         return self.get_site_property("magmom")
 
     def get_kind_names(self,):
-        return self.get_site_property("kind_name")
+        return self.get_site_property("kinds")
 
     def get_positions(self,):
         return self.get_site_property("position")
@@ -572,9 +572,9 @@ class GetterMixin:
 
         # Step 1:
         kind_properties = []
-        kinds_dictionary = {"kind_name": {}}
+        kinds_dictionary = {"kinds": {}}
         for single_property in self.properties.sites[0].model_dump().keys():
-            if single_property not in ["symbol", "position", "kind_name",] + exclude:
+            if single_property not in ["symbol", "position", "kinds",] + exclude:
                 #prop = self.get_site_property(single_property)
                 thr = custom_thr.get(
                     single_property, default_thresholds.get(single_property)
@@ -624,7 +624,7 @@ class GetterMixin:
                 break
 
         # Step 3:
-        kinds_dictionary["kind_name"] = [
+        kinds_dictionary["kinds"] = [
             kind_names[i]  if not kind_tags[i] else kind_tags[i]
             for i in range(len(kind_tags))
         ]
@@ -792,7 +792,7 @@ class GetterMixin:
 
         try:
             # This will try to create the kinds objects
-            kinds = set(self.get_site_property("kind_name"))
+            kinds = set(self.get_site_property("kinds"))
         except ValueError as exc:
             raise ValidationError(f"Unable to validate the kinds: {exc}")
 
@@ -812,12 +812,12 @@ class GetterMixin:
             raise ValidationError(f"Unable to validate the sites: {exc}")
 
         for site in sites:
-            if site.kind_name not in kinds:
+            if site.kinds not in kinds:
                 raise ValidationError(
-                    f"A site has kind {site.kind_name}, but no specie with that name exists"
+                    f"A site has kind {site.kinds}, but no specie with that name exists"
                 )
 
-        kinds_without_sites = {k for k in kinds} - {s.kind_name for s in sites}
+        kinds_without_sites = {k for k in kinds} - {s.kinds for s in sites}
         if kinds_without_sites:
             raise ValidationError(
                 f"The following kinds are defined, but there are no sites with that kind: {list(kinds_without_sites)}"
@@ -842,7 +842,7 @@ class GetterMixin:
             # I checked above that it is not an alloy, therefore I take the
             # first symbol
             return_string += (
-                f"{_atomic_numbers[self.get_kind(site.kind_name).symbols[0]]} "
+                f"{_atomic_numbers[self.get_kind(site.kinds).symbols[0]]} "
             )
             return_string += "%18.10f %18.10f %18.10f\n" % tuple(site.position)
         return return_string.encode("utf-8"), {}
@@ -893,7 +893,7 @@ class GetterMixin:
                     - center
                 ).tolist()
 
-                kind_name = base_site["kind_name"]
+                kind_name = base_site["kinds"]
                 kind_string = self.get_kind(kind_name).get_symbols_string()
 
                 atoms_json.append(
@@ -957,7 +957,7 @@ class GetterMixin:
             # first symbol
             return_list.append(
                 "{:6s} {:18.10f} {:18.10f} {:18.10f}".format(
-                    self.get_kind(site.kind_name).symbols[0],
+                    self.get_kind(site.kinds).symbols[0],
                     site.position[0],
                     site.position[1],
                     site.position[2],
@@ -1035,7 +1035,7 @@ class GetterMixin:
         """
         from phonopy.structure.atoms import PhonopyAtoms
 
-        atoms = PhonopyAtoms(symbols=[_.kind_name for _ in self.properties.sites])
+        atoms = PhonopyAtoms(symbols=[_.kinds for _ in self.properties.sites])
         # Phonopy internally uses scaled positions, so you must store cell first!
         atoms.set_cell(self.properties.cell)
         atoms.set_positions([_.position for _ in self.properties.sites])
@@ -1054,7 +1054,7 @@ class GetterMixin:
         asecell = ase.Atoms(cell=self.properties.cell, pbc=self.properties.pbc)
 
         for site in self.properties.sites:
-            asecell.append(site.to_ase(kinds=site.kind_name))
+            asecell.append(site.to_ase(kinds=site.kinds))
 
         # asecell.set_initial_charges(self.get_site_property("charge"))
 
@@ -1115,7 +1115,7 @@ class GetterMixin:
 
             oxidation_state = 0  # now I always set the oxidation_state to zero
             for site in self.properties.sites:
-                kind = site.kind_name
+                kind = site.kinds
                 if len(kind.symbols) != 1 or (
                     len(kind.weights) != 1 or sum(kind.weights) < 1.0
                 ):
@@ -1124,9 +1124,9 @@ class GetterMixin:
                     )
                 spin = (
                     -1
-                    if site.kind_name.endswith("1")
+                    if site.kinds.endswith("1")
                     else 1
-                    if site.kind_name.endswith("2")
+                    if site.kinds.endswith("2")
                     else 0
                 )
                 try:
@@ -1143,7 +1143,7 @@ class GetterMixin:
         else:
             # case when no spin are defined
             for site in self.properties.sites:
-                kind = site.kind_name
+                kind = site.kinds
                 specie = Specie(
                     site.symbol,
                     site.charge,
@@ -1151,12 +1151,12 @@ class GetterMixin:
                 species.append(specie)
             # if any(
             #    create_automatic_kind_name(self.get_kind(name).symbols, self.get_kind(name).weights) != name
-            #    for name in self.get_site_property("kind_name")
+            #    for name in self.get_site_property("kinds")
             # ):
-            # add "kind_name" as a properties to each site, whenever
-            # the kind_name cannot be automatically obtained from the symbols
+            # add "kinds" as a properties to each site, whenever
+            # the kinds cannot be automatically obtained from the symbols
             additional_kwargs["site_properties"] = {
-                "kind_name": self.properties.kinds,
+                "kinds": self.properties.kinds,
                 "charge": self.properties.charges,
                 "magmom": self.properties.magmoms
             }
@@ -1214,7 +1214,7 @@ class GetterMixin:
         mol =  Molecule(species, positions)
 
         additional_kwargs["site_properties"] = {
-                "kind_name": self.properties.kinds,
+                "kinds": self.properties.kinds,
                 "charge": self.properties.charges,
                 "magmom": self.properties.magmoms
             }
@@ -1414,14 +1414,19 @@ class SetterMixin:
         self.properties.cell = the_cell
 
     def set_cell_lengths(self, value):
-        raise NotImplementedError("Modification is not implemented yet")
+        raise NotImplementedError("This method is not implemented yet")
 
     def set_cell_angles(self, value):
-        raise NotImplementedError("Modification is not implemented yet")
+        raise NotImplementedError("This method is not implemented yet")
 
     def update_site(self, site_index, **kwargs):
         """Update the site at the given index."""
-        self.properties.sites[site_index].update(**kwargs)
+        for key, value in kwargs.items():
+            _value = getattr(self.properties, key, None)
+            if not _value:
+                raise ValueError(f"Invalid key '{key}' for site properties.")
+            _value[site_index] = value
+        return
 
     def set_charges(self, value):
         if not len(self.properties.sites) == len(value):
@@ -1448,7 +1453,7 @@ class SetterMixin:
             )
         else:
             for site_index in range(len(value)):
-                self.update_site(site_index, kind_name=value[site_index])
+                self.update_site(site_index, kinds=value[site_index])
 
     def set_site_property(self, name: str, values: t.List):
         """
@@ -1458,26 +1463,26 @@ class SetterMixin:
         :param values (list): The values of the property for each site.
         """
 
-        for site, value in zip(self.properties.sites,values):
-            setattr(site, name, value)
+        for index, value in enumerate(values):
+            self.update_site(index, **{name: value})
 
-    def set_kind_property(self, name: str, values, kind_name):
+    def set_kind_property(self, name: str, value, kind):
         """
         Set a property for all sites of a given kind.
 
         Parameters:
         :param name (str): The name of the property.
-        :param values: The values to set for each site.
-        :param kind_name (str): The name of the kind to filter sites.
+        :param value: The value to set for each site.
+        :param kind (str): The name of the kind to filter sites.
 
         Returns:
         None
         """
-        for site in self.properties.sites:
-            if site.kind_name == kind_name:
-                setattr(site, name, values)
+        for index, site in enumerate(self.properties.sites):
+            if  site.kinds == kind:
+                self.update_site(index, **{name: value})
 
-    def add_atom(self, atom_info, index=-1):
+    def add_atom(self, index=-1, **atom_info):
 
         new_site = Site.atom_to_site(**atom_info)
         # I look for identical species only if the name is not specified
@@ -1485,9 +1490,9 @@ class SetterMixin:
 
         # check that the matrix is not singular. If it is, raise an error.
         # check to be done in the core.
-        for site_position in self.get_site_property("position"):
+        for site_position in self.properties.positions:
             if (
-                np.linalg.norm(np.array(new_site.position) - np.array(site_position))
+                np.linalg.norm(np.array(new_site.positions) - np.array(site_position))
                 < 1e-3
             ):
                 raise ValueError(
@@ -1497,29 +1502,34 @@ class SetterMixin:
         if len(self.properties.sites) < index:
             raise IndexError("insert_atom index out of range")
         else:
-            self.properties.sites.append(new_site) if index == -1 else self.properties.sites.insert(index, new_site)
+            """Update the site at the given index."""
+            for key, value in new_site.model_dump().items():
+                _value = getattr(self.properties, key, None)
+                if not _value:
+                    raise ValueError(f"Invalid key '{key}' for site properties.")
+                if index > -1:
+                    _value.insert(index, value)
+                else:
+                    _value.append(value)
+        return
 
-    def pop_atom(self, index=None):
+    def pop_atom(self, index=-1):
         # If no index is provided, pop the last item
-        if index is None:
-            return self.properties.sites.pop()
+        site = self.properties.sites[index]
         # Check if the provided index is valid
-        elif 0 <= index < len(self.properties.sites):
-            return self.properties.sites.pop(index)
-        else:
+        if index > len(self.properties.sites):
             raise IndexError("pop_atom index out of range")
-
-    def clear_sites(self,):
-        self.properties.sites = []
+        else:
+            for key, value in site.model_dump().items():
+                _value = getattr(self.properties, key, None)
+                if not _value:
+                    raise ValueError(f"Invalid key '{key}' for site properties.")
+                else:
+                    _value.pop(index)
 
     def clear_property(self, property_name):
         """Clear the given property."""
         mutable_dict = self.to_dict()
-        defined_properties = self.get_defined_properties()
-        if property_name in defined_properties["direct"]:
-            mutable_dict.pop(property_name, None)
-        elif property_name in defined_properties["sites"]:
-            for site in mutable_dict["sites"]:
-                site.pop(property_name, None)
+        mutable_dict.pop(property_name, None)
 
         return self.__class__(**mutable_dict)

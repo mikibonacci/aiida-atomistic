@@ -10,7 +10,7 @@ from aiida import orm
 from aiida.common.constants import elements
 from aiida.orm.nodes.data import Data
 
-from aiida_atomistic.data.structure.site import SiteImmutable, SiteMutable, FrozenList, freeze_nested
+from aiida_atomistic.data.structure.site import SiteImmutable, FrozenList, freeze_nested
 
 try:
     import ase  # noqa: F401
@@ -42,6 +42,14 @@ _SUM_THRESHOLD = 1.0e-6
 # Default cell
 _DEFAULT_CELL = [[0.0, 0.0, 0.0]] * 3
 
+_DEFAULT_VALUES = {
+    "masses": 0,
+    "charges": 0,
+    "magmoms": [0, 0, 0],
+    "hubbard": None,
+    "weights": (1,)
+}
+
 _valid_symbols = tuple(i["symbol"] for i in elements.values())
 _atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
 _atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
@@ -59,10 +67,28 @@ class StructureBaseModel(BaseModel):
     cell: t.Optional[t.List[t.List[float]]] = Field(default  = None)
     custom: t.Optional[dict] = Field(default=None)
 
+    symbols: t.List[str] = Field(default=["H"])
+    positions: t.List[t.List[float]] = Field(default=[[0,0,0]])
+
+    kinds: t.List[str] = Field(default=None)
+    weights: t.List[t.Tuple[float, ...]] = Field(default=None)
+    masses: t.List[float] = Field(default=None)
+
+    charges: t.List[float] = Field(default=None)
+    magmoms: t.List[t.List[float]] = Field(default=None)
+
     class Config:
         from_attributes = True
         frozen = False
         arbitrary_types_allowed = True
+
+    # Making immutable the properties, if needed (i.e. in AiiDA StructureData)
+    @field_validator('symbols', 'positions','kinds','magmoms','charges','masses','weights','custom')
+    def validate_list(cls, v: t.List[float]) -> t.Any:
+        if not cls._mutable.default:
+            return freeze_nested(v)
+        else:
+            return v
 
     @field_validator('pbc')
     @classmethod
@@ -127,6 +153,7 @@ class StructureBaseModel(BaseModel):
 
         return v
 
+
     @model_validator(mode='before')
     def check_minimal_requirements(cls, data):
         """
@@ -141,20 +168,44 @@ class StructureBaseModel(BaseModel):
         Raises:
             ValueError: If the structure does not meet the minimal requirements.
         """
-        if not data.get("sites", None) and not cls._mutable:
-            raise ValueError("The structure must contain at least one site")
-        elif not data.get("sites", None) and cls._mutable:
-            pass
-        else:
-            from aiida_atomistic.data.structure.utils import _check_valid_sites
-            _check_valid_sites(data["sites"])
-        if not data.get("cell", None):
-            # raise ValueError("The structure must contain a cell")
-            #warnings.warn("using default cell")
-            data["cell"] = _DEFAULT_CELL
-        if not data.get("pbc", None):
-            # raise ValueError("The structure must contain periodic boundary conditions")
-            data["pbc"] = [True,True,True]
+
+        from aiida_atomistic.data.structure.utils import _check_valid_sites
+
+        if not data.get("symbols", None):
+            data["symbols"] = cls.model_fields["symbols"].default
+        if not data.get("positions", None):
+            data["positions"] = cls.model_fields["positions"].default * len(data["symbols"])
+
+        _check_valid_sites(data["positions"])
+
+        if data.get("symbols", None):
+            if not data.get("cell", None):
+                # raise ValueError("The structure must contain a cell")
+                #warnings.warn("using default cell")
+                data["cell"] = _DEFAULT_CELL
+            if not data.get("pbc", None):
+                # raise ValueError("The structure must contain periodic boundary conditions")
+                data["pbc"] = [True,True,True]
+
+            # site properties: symbols, kinds, masses, charges, magmoms, weights
+            if not data.get("kinds"):
+                data["kinds"] = data["symbols"]
+            else:
+                if len(data["kinds"]) != len(data['symbols']):
+                    raise ValueError("Length of kinds does not match the number of symbols")
+            if not data.get("masses"):
+                data["masses"] = [_atomic_masses[s] for s in data["symbols"]]
+            else:
+                if len(data["masses"]) != len(data['symbols']):
+                    raise ValueError("Length of masses does not match the number of symbols")
+
+            for prop in ['positions','charges', 'magmoms', 'weights']:
+                if data.get(prop) is None:
+                    data[prop] = [_DEFAULT_VALUES[prop]] * len(data['symbols'])
+                else:
+                    if len(data[prop]) != len(data['symbols']):
+                        raise ValueError(f"Length of {prop} does not match the number of symbols")
+
         return data
 
     @computed_field
@@ -179,65 +230,28 @@ class StructureBaseModel(BaseModel):
         from aiida_atomistic.data.structure.utils import get_dimensionality
         return get_dimensionality(self.pbc, self.cell)
 
-    @computed_field
-    def charges(self) -> FrozenList[float]:
+    @computed_field # can also be just a property, always frozen... in this way we skip initialization at the structure __init__ phase.
+    def sites(self) -> FrozenList[SiteImmutable]:
         """
-        Get the charges of the sites in the structure.
+        Get the sites in the structure.
 
         Returns:
-            FrozenList[float]: The charges of the sites.
+            FrozenList[SiteImmutable]: The sites in the structure.
         """
-        return FrozenList([site.charge for site in self.sites])
+        md = self.model_dump(
+            exclude=["pbc","cell","custom"]+list(self.model_computed_fields.keys())
+            )
 
-    @computed_field
-    def magmoms(self) -> FrozenList[FrozenList[float]]:
-        """
-        Get the magnetic moments of the sites in the structure.
+        def from_dict_to_list(md):
+            transformed_list = [
+                {key: value[i] if isinstance(value, list) else _DEFAULT_VALUES[key] for key, value in md.items()}
+                for i in range(len(md['symbols']))
+            ]
 
-        Returns:
-            FrozenList[FrozenList[float]]: The magnetic moments of the sites.
-        """
-        return FrozenList([site.magmom for site in self.sites])
+            return transformed_list
 
-    @computed_field
-    def masses(self) -> FrozenList[float]:
-        """
-        Get the masses of the sites in the structure.
-
-        Returns:
-            FrozenList[float]: The masses of the sites.
-        """
-        return FrozenList([site.mass for site in self.sites])
-
-    @computed_field
-    def kinds(self) -> FrozenList[str]:
-        """
-        Get the kinds of the sites in the structure.
-
-        Returns:
-            FrozenList[str]: The kinds of the sites.
-        """
-        return FrozenList([site.kind_name for site in self.sites])
-
-    @computed_field
-    def symbols(self) -> FrozenList[str]:
-        """
-        Get the atomic symbols of the sites in the structure.
-
-        Returns:
-            FrozenList[str]: The atomic symbols of the sites.
-        """
-        return FrozenList([site.symbol for site in self.sites])
-
-    @computed_field
-    def positions(self) -> FrozenList[FrozenList[float]]:
-        """
-        Get the positions of the sites in the structure.
-
-        Returns:
-            FrozenList[FrozenList[float]]: The positions of the sites.
-        """
-        return FrozenList([site.position for site in self.sites])
+        sites = FrozenList([SiteImmutable(**value) for value in from_dict_to_list(md)])
+        return sites
 
     @computed_field
     def formula(self) -> str:
@@ -261,7 +275,6 @@ class MutableStructureModel(StructureBaseModel):
 
     _mutable = True
 
-    sites: t.Optional[t.List[SiteMutable]] = Field(default_factory=list)
 
 class ImmutableStructureModel(StructureBaseModel):
     """
@@ -278,9 +291,7 @@ class ImmutableStructureModel(StructureBaseModel):
         frozen (bool): Flag indicating whether the model is frozen or not.
         arbitrary_types_allowed (bool): Flag indicating whether arbitrary types are allowed or not.
     """
-
     _mutable = False
-    sites: t.List[SiteImmutable]
 
     class Config:
         from_attributes = True

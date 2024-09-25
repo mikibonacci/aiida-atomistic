@@ -53,6 +53,8 @@ _default_values = {
 
 class StructureData(Data, GetterMixin):
 
+    _mutable = False
+
     def __init__(self, **kwargs):
 
         self._properties = ImmutableStructureModel(**kwargs)
@@ -74,6 +76,8 @@ class StructureData(Data, GetterMixin):
         return StructureDataMutable(**self.to_dict(detect_kinds=detect_kinds))
 
 class StructureDataMutable(GetterMixin, SetterMixin):
+
+    _mutable = True
 
     def __init__(self, **kwargs):
 

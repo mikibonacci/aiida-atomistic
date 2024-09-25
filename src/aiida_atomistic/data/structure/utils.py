@@ -137,15 +137,15 @@ def _get_valid_pbc(inputpbc):
 
     return the_pbc
 
-def _check_valid_sites(input_sites):
+def _check_valid_sites(input_positions):
 
-    num_sites = len(input_sites)
+    num_sites = len(input_positions)
 
     for i in range(num_sites):
         for j in range(num_sites):
             if j == i:
                 continue
-            if np.allclose(input_sites[i]["position"], input_sites[j]["position"], atol=1e-3):
+            if np.allclose(input_positions[i], input_positions[j], atol=1e-3):
                 raise ValueError(f"Sites {i+1} and {j+1} cannot have the same position")
 
     return
@@ -800,7 +800,7 @@ def set_symbols_and_weights(new_data):
 
         .. note:: Note that the kind name remains unchanged.
         """
-        symbols_tuple = _create_symbols_tuple(new_data["symbol"])
+        symbols_tuple = _create_symbols_tuple(new_data["symbols"])
         weights_tuple = _create_weights_tuple(new_data["weights"])
         if len(symbols_tuple) != len(weights_tuple):
             raise ValueError('The number of symbols and weights must coincide.')
@@ -810,12 +810,12 @@ def set_symbols_and_weights(new_data):
         new_data["alloy"] = symbols_tuple
         new_data["weights"] = weights_tuple
 
-        if not "mass" in new_data.keys() or np.isnan(new_data.get("mass", None)):
+        if "masses" not in new_data.keys() or np.isnan(new_data.get("masses", None)):
             # Weighted mass
             w_sum = sum(weights_tuple)
             normalized_weights = (i / w_sum for i in weights_tuple)
             element_masses = (_atomic_masses[sym] for sym in symbols_tuple)
-            new_data["mass"] = sum(i * j for i, j in zip(normalized_weights, element_masses))
+            new_data["masses"] = sum(i * j for i, j in zip(normalized_weights, element_masses))
 
 def check_is_alloy(data):
     """Check if the data is an alloy or not.
@@ -825,8 +825,8 @@ def check_is_alloy(data):
     """
     new_data = copy.deepcopy(data)
     if len(new_data.get("weights", [1,])) == 1:
-        if new_data["symbol"] not in _valid_symbols:
-            raise ValueError(f'his is not a valid element: {new_data["symbol"]}')
+        if new_data["symbols"] not in _valid_symbols:
+            raise ValueError(f'his is not a valid element: {new_data["symbols"]}')
         return None
     set_symbols_and_weights(new_data)
     return new_data

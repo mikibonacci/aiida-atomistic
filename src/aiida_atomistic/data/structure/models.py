@@ -12,6 +12,8 @@ from aiida.orm.nodes.data import Data
 
 from aiida_atomistic.data.structure.site import SiteImmutable, FrozenList, freeze_nested
 
+from aiida_quantumespresso.common.hubbard import Hubbard
+
 try:
     import ase  # noqa: F401
     from ase import io as ase_io
@@ -77,6 +79,8 @@ class StructureBaseModel(BaseModel):
 
     charges: t.List[float] = Field(default=None)
     magmoms: t.List[t.List[float]] = Field(default=None)
+
+    hubbard: t.Optional[Hubbard] = Field(default=None)
 
     class Config:
         from_attributes = True

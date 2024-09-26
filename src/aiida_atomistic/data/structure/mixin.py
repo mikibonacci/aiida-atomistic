@@ -8,6 +8,10 @@ from aiida.common.constants import elements
 
 from aiida_atomistic.data.structure.site import SiteImmutable as Site
 from aiida_atomistic.data.structure.models import MutableStructureModel
+from aiida_atomistic.data.structure.hubbard_mixin import (
+    HubbardGetterMixin,
+    HubbardSetterMixin
+)
 
 try:
     import ase  # noqa: F401
@@ -53,7 +57,7 @@ _default_values = {
     "magmoms": [0, 0, 0],
 }
 
-class GetterMixin:
+class GetterMixin(HubbardGetterMixin):
 
     @property
     def is_alloy(self):
@@ -1093,7 +1097,7 @@ class GetterMixin:
                 f"Unrecognized parameters passed to pymatgen converter: {kwargs.keys()}"
             )
 
-        positions = [list(x.position) for x in self.properties.sites]
+        positions = [list(x.positions) for x in self.properties.sites]
 
         try:
             return Structure(
@@ -1304,7 +1308,7 @@ class GetterMixin:
             self.properties.model_dump(exclude_defaults=True)["sites"],
             return_undefined=True))
 
-class SetterMixin:
+class SetterMixin(HubbardSetterMixin):
 
     def _validate_properties(self,):
         """Validate the structure.

@@ -260,11 +260,18 @@ class SiteCore(BaseModel):
         tag_list = []
         used_tags = defaultdict(list)
 
+        required_properties = set(["symbols", "positions", "masses", "charges", "magmoms"])
+
         # we should put a small routine to do tags. or instead of kinds, provide the tag (or tag mapping).
         tag = None
         atom_dict = self.model_dump()
-        atom_dict.pop("kinds",None)
-        atom_dict.pop("weights",None)
+        atom_dict["symbol"] = atom_dict.pop("symbols", None)
+        atom_dict["position"] = atom_dict.pop("positions", None)
+        atom_dict["magmom"] = atom_dict.pop("magmoms", None)
+        atom_dict["charge"] = atom_dict.pop("charges", None)
+        atom_dict["mass"] = atom_dict.pop("masses", None)
+        for prop in set(self.model_dump().keys()).difference(required_properties):
+            atom_dict.pop(prop,None)
         aseatom = ase.Atom(
             **atom_dict
         )

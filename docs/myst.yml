@@ -15,6 +15,7 @@ project:
     - file: 02-supercell-generation-and-more.ipynb
     - file: 03-tutorial_qe.ipynb
     - file: 04-plugin_migration_guide.ipynb
+    - file: 05-EoS_workgraph.ipynb
 
 site:
   template: book-theme

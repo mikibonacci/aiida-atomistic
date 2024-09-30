@@ -6,6 +6,8 @@ Borrowed and adapted from aiida-quantumespresso
 from typing import List, Literal, Tuple
 from pymatgen.core import Lattice, PeriodicSite
 
+import numpy as np
+
 from aiida_quantumespresso.common.hubbard import Hubbard, HubbardParameters
 
 class HubbardGetterMixin:

@@ -46,6 +46,12 @@ _DEFAULT_PROPERTIES = {
             'pbc',
             'cell',
             'sites',
+            'masses',
+            'kinds',
+            'symbols',
+            'positions',
+            'weights',
+            'custom', # experimental
         }
 
 _valid_symbols = tuple(i["symbol"] for i in elements.values())
@@ -1304,9 +1310,9 @@ class GetterMixin(HubbardGetterMixin):
             Args:
                 exclude_defaults (bool): If True, properties with default values will be excluded from the result.
         """
-        return self.get_supported_properties().difference(self.properties.transform_sites_list(
+        return set(self.properties.model_dump(exclude_defaults=True).keys()).difference(self.properties.transform_sites_list(
             self.properties.model_dump(exclude_defaults=True)["sites"],
-            return_undefined=True))
+            return_undefined=True)).difference(self.properties.model_computed_fields.keys())
 
 class SetterMixin(HubbardSetterMixin):
 
@@ -1344,7 +1350,11 @@ class SetterMixin(HubbardSetterMixin):
         for key, value in kwargs.items():
             _value = getattr(self.properties, key, None)
             if not _value:
-                raise ValueError(f"Invalid key '{key}' for site properties.")
+                if key in self.get_supported_properties():
+                    setattr(self.properties, key, [])
+                    _value = getattr(self.properties, key, None)
+                else:
+                    raise ValueError(f"Invalid key '{key}' for site properties.")
             _value[site_index] = value
         return
 
@@ -1355,7 +1365,7 @@ class SetterMixin(HubbardSetterMixin):
             )
         else:
             for site_index in range(len(value)):
-                self.update_site(site_index, charge=value[site_index])
+                self.update_site(site_index, charges=value[site_index])
 
     def set_magmoms(self, value):
         if not len(self.properties.sites) == len(value):
@@ -1364,9 +1374,9 @@ class SetterMixin(HubbardSetterMixin):
             )
         else:
             for site_index in range(len(value)):
-                self.update_site(site_index, magmom=value[site_index])
+                self.update_site(site_index, magmoms=value[site_index])
 
-    def set_kind_names(self, value):
+    def set_kinds(self, value):
         if not len(self.properties.sites) == len(value):
             raise ValueError(
                 "The number of kind_names must be equal to the number of sites"
@@ -1386,7 +1396,7 @@ class SetterMixin(HubbardSetterMixin):
         for index, value in enumerate(values):
             self.update_site(index, **{name: value})
 
-    def set_kind_property(self, name: str, value, kind):
+    def set_kind_property(self, name: str, kinds: str, value):
         """
         Set a property for all sites of a given kind.
 
@@ -1399,7 +1409,7 @@ class SetterMixin(HubbardSetterMixin):
         None
         """
         for index, site in enumerate(self.properties.sites):
-            if  site.kinds == kind:
+            if  site.kinds == kinds:
                 self.update_site(index, **{name: value})
 
     def add_atom(self, index=-1, **atom_info):
@@ -1426,7 +1436,11 @@ class SetterMixin(HubbardSetterMixin):
             for key, value in new_site.model_dump().items():
                 _value = getattr(self.properties, key, None)
                 if not _value:
-                    raise ValueError(f"Invalid key '{key}' for site properties.")
+                    if key in self.get_supported_properties():
+                        setattr(self.properties, key, [])
+                        _value = getattr(self.properties, key, None)
+                    else:
+                        raise ValueError(f"Invalid key '{key}' for site properties.")
                 if index > -1:
                     _value.insert(index, value)
                 else:
@@ -1447,9 +1461,26 @@ class SetterMixin(HubbardSetterMixin):
                 else:
                     _value.pop(index)
 
+    def clear_sites(self,):
+        """Clear the sites, i.e. every property except pbc, cell and custom."""
+        mutable_dict = self.to_dict()
+        mutable_dict.pop("sites",None)
+
+        for prop in self.get_supported_properties():
+            if prop in ["pbc","cell","custom"]:
+                continue
+            else:
+                mutable_dict.pop(prop, None)
+
+        self.__init__(**mutable_dict)
+        return
+
+
     def clear_property(self, property_name):
         """Clear the given property."""
         mutable_dict = self.to_dict()
+        mutable_dict.pop("sites",None)
         mutable_dict.pop(property_name, None)
 
-        return self.__class__(**mutable_dict)
+        self.__init__(**mutable_dict)
+        return

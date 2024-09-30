@@ -43,6 +43,7 @@ _MASS_THRESHOLD = 1.0e-3
 _SUM_THRESHOLD = 1.0e-6
 # Default cell
 _DEFAULT_CELL = [[0.0, 0.0, 0.0]] * 3
+_DEFAULT_PBC = [True, True, True]
 
 _DEFAULT_VALUES = {
     "kinds": "",
@@ -66,12 +67,12 @@ class StructureBaseModel(BaseModel):
         cell (Optional[List[List[float]]]): The cell vectors defining the unit cell of the structure.
     """
 
-    pbc: t.Optional[t.List[bool]] = Field(min_length=3, max_length=3, default = None)
+    pbc: t.Optional[t.List[bool]] = Field(min_length=3, max_length=3, default = _DEFAULT_PBC)
     cell: t.Optional[t.List[t.List[float]]] = Field(default  = _DEFAULT_CELL)
     custom: t.Optional[dict] = Field(default=None)
 
-    symbols: t.Union[t.List[str], t.List[t.List[str]]] = Field(default=["H"])
-    positions: t.List[t.List[float]] = Field(default=[[0,0,0]])
+    symbols: t.Union[t.List[str], t.List[t.List[str]]] = Field(default=[])
+    positions: t.List[t.List[float]] = Field(default=[])
 
     kinds: t.List[str] = Field(default=None)
     weights: t.List[t.Tuple[float, ...]] = Field(default=None)
@@ -80,7 +81,7 @@ class StructureBaseModel(BaseModel):
     charges: t.List[float] = Field(default=None)
     magmoms: t.List[t.List[float]] = Field(default=None)
 
-    hubbard: t.Optional[Hubbard] = Field(default=None)
+    hubbard: t.Optional[Hubbard] = Field(default=Hubbard(parameters=[]))
 
     class Config:
         from_attributes = True
@@ -95,9 +96,19 @@ class StructureBaseModel(BaseModel):
         else:
             return v
 
+    #@field_serializer('positions','magmoms','charges','masses')
+    #def serialize_numpy_arrays(cls, v: t.Any) -> t.List:
+    #    if isinstance(v, np.ndarray):
+    #        return v.tolist()
+    #
+    #    for index, element  in enumerate(v):
+    #        if isinstance(element, np.ndarray):
+    #            v[index] = element.tolist()
+    #    return v
+
     @field_validator('pbc')
     @classmethod
-    def validate_pbc(cls, v: t.List[bool]) -> t.Any:
+    def validate_pbc(cls, v: t.List[bool]) -> t.List[bool]:
         """
         Validate the periodic boundary conditions.
 
@@ -132,7 +143,7 @@ class StructureBaseModel(BaseModel):
 
     @field_validator('cell')
     @classmethod
-    def validate_cell(cls, v: t.List[t.List[float]]) -> t.Any:
+    def validate_cell(cls, v: t.List[t.List[float]]) -> t.List[bool]:
         """
         Validate the cell vectors.
 
@@ -177,9 +188,10 @@ class StructureBaseModel(BaseModel):
         from aiida_atomistic.data.structure.utils import _check_valid_sites
 
         if not data.get("symbols", None):
-            data["symbols"] = cls.model_fields["symbols"].default
+            return {"pbc":cls.model_fields["pbc"].default, "cell":cls.model_fields["cell"].default}
+
         if not data.get("positions", None):
-            data["positions"] = cls.model_fields["positions"].default * len(data["symbols"])
+            raise ValueError("The structure contains symbols, so it must contain positions also.")
 
         _check_valid_sites(data["positions"])
 
@@ -223,11 +235,18 @@ class StructureBaseModel(BaseModel):
                             "weights": weight,
                             }
                         )
-                    new_data.pop("alloy", None)
-                    new_data["kinds"] = ''.join(symbol) if isinstance(symbol, list) else symbol
-                    # I could do the following also inside the `check_is_alloy` function, but I do it
-                    # here to be more clear on what we do. We provide symbols as joined strings, as the kinds.
-                    new_data["symbols"] = new_data["kinds"]
+
+                    if not new_data: # not an alloy
+                        new_data = {}
+                        new_data["kinds"] = symbol
+                        new_data["symbols"] = new_data["kinds"]
+                        new_data["masses"] = _atomic_masses[symbol] if symbol in _atomic_masses.keys() else _DEFAULT_VALUES["masses"]
+                    else:
+                        new_data.pop("alloy", None)
+                        new_data["kinds"] = ''.join(symbol) if isinstance(symbol, list) else symbol
+                        # I could do the following also inside the `check_is_alloy` function, but I do it
+                        # here to be more clear on what we do. We provide symbols as joined strings, as the kinds.
+                        new_data["symbols"] = new_data["kinds"]
                     for key, value in new_data.items():
                         data[key][idx] = value
 

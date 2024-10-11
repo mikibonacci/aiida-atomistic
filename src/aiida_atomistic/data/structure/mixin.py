@@ -63,6 +63,12 @@ _default_values = {
     "magmoms": [0, 0, 0],
 }
 
+_DEFAULT_THRESHOLDS = {
+            "charges": 0.1,
+            "masses": 1e-4,
+            "magmoms": 1e-4, # _MAGMOM_THRESHOLD
+        }
+
 class GetterMixin(HubbardGetterMixin):
 
     @property
@@ -486,11 +492,13 @@ class GetterMixin(HubbardGetterMixin):
             f"mode `{mode}` is invalid, choose from `full`, `reduced` or `fractional`."
         )
 
-    def get_kinds(self, kind_tags=[], exclude=["weights"], custom_thr={}, ready_to_use=False):
+    def get_kinds(self, kind_tags=[], exclude=[], custom_thr={}, ready_to_use=False):
         """
         Get the list of kinds, taking into account all the properties.
         If the list of kinds is already provided--> len(kind_tags)>0, we check the consistency of it
         by computing the kinds with threshold=0 for each property.
+
+        NB: for now, we exclude the `weights` property. TOBE implemented.
 
 
         Algorithm:
@@ -540,11 +548,10 @@ class GetterMixin(HubbardGetterMixin):
         # symbols = self.base.attributes.get("_property_attributes")['symbols']['value']
         # However, for now I do not let the kinds to be automatically generated when we initialise the structure:
         symbols = self.get_site_property("symbols")
-        default_thresholds = {
-            "charges": 0.1,
-            "masses": 1e-4,
-            "magmoms": 1e-4, # _MAGMOM_THRESHOLD
-        }
+
+        # TOBE implemented: weights support
+        if "weights" not in exclude:
+            exclude.append("weights")
 
         list_tags = []
         if len(kind_tags) == 0:
@@ -566,7 +573,7 @@ class GetterMixin(HubbardGetterMixin):
             if single_property not in ["symbols", "positions", "kinds",] + exclude:
                 #prop = self.get_site_property(single_property)
                 thr = custom_thr.get(
-                    single_property, default_thresholds.get(single_property)
+                    single_property, _DEFAULT_THRESHOLDS.get(single_property)
                 )
                 kinds_dictionary[single_property] = {}
 
@@ -621,6 +628,9 @@ class GetterMixin(HubbardGetterMixin):
         kinds_dictionary["index"] = kind_numeration
         kinds_dictionary["symbols"] = symbols.tolist()
         kinds_dictionary["positions"] = self.get_site_property("positions").tolist()
+
+        # we delete the index key, as it is not a property
+        kinds_dictionary.pop("index", None)
 
         # Step 4: check on the kind_tags consistency with the properties value.
         if check_kinds and not np.array_equal(check_array, array_tags):
@@ -1384,6 +1394,18 @@ class SetterMixin(HubbardSetterMixin):
         else:
             for site_index in range(len(value)):
                 self.update_site(site_index, kinds=value[site_index])
+
+    def set_automatic_kinds(self, exclude=[],custom_thr={}):
+
+        new_structure_with_kinds = self.get_kinds(
+            exclude=exclude,
+            custom_thr=custom_thr,
+            )
+        # update the properties:
+        new_structure_dict = self.to_dict()
+        new_structure_dict.update(new_structure_with_kinds)
+        new_structure_dict.pop("sites",None)
+        self.__init__(**new_structure_dict)
 
     def set_site_property(self, name: str, values: t.List):
         """

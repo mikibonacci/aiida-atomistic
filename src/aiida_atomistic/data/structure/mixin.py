@@ -6,8 +6,12 @@ import numpy as np
 from aiida import orm
 from aiida.common.constants import elements
 
-from aiida_atomistic.data.structure.site import SiteMutable as Site
+from aiida_atomistic.data.structure.site import SiteImmutable as Site
 from aiida_atomistic.data.structure.models import MutableStructureModel
+from aiida_atomistic.data.structure.hubbard_mixin import (
+    HubbardGetterMixin,
+    HubbardSetterMixin
+)
 
 try:
     import ase  # noqa: F401
@@ -42,11 +46,12 @@ _DEFAULT_PROPERTIES = {
             'pbc',
             'cell',
             'sites',
-            'kind_name',
-            'mass',
-            'symbol',
-            'position',
+            'masses',
+            'kinds',
+            'symbols',
+            'positions',
             'weights',
+            'custom', # experimental
         }
 
 _valid_symbols = tuple(i["symbol"] for i in elements.values())
@@ -58,7 +63,7 @@ _default_values = {
     "magmoms": [0, 0, 0],
 }
 
-class GetterMixin:
+class GetterMixin(HubbardGetterMixin):
 
     @property
     def is_alloy(self):
@@ -70,14 +75,14 @@ class GetterMixin:
 
     @property
     def is_collinear(self):
-        if "magmoms" not in self.get_defined_properties()["computed"]:
+        if "magmoms" not in self.get_defined_properties():
             return False
         namelist = {"starting_magnetization":{},"angle1":{},"angle2":{}}
         for site in self.properties.sites:
             for variable in namelist.keys():
-                namelist[variable][site.kind_name] = site.get_magmom_coord(coord="spherical")[variable]
-        return len(set([namelist["angle1"][site.kind_name] for site in self.properties.sites])) == 1 and \
-            len(set([namelist["angle2"][site.kind_name] for site in self.properties.sites])) == 1
+                namelist[variable][site.kinds] = site.get_magmom_coord(coord="spherical")[variable]
+        return len(set([namelist["angle1"][site.kinds] for site in self.properties.sites])) == 1 and \
+            len(set([namelist["angle2"][site.kinds] for site in self.properties.sites])) == 1
 
     @classmethod
     def from_ase(
@@ -104,9 +109,6 @@ class GetterMixin:
 
         if detect_kinds:
             data["sites"] = structure.get_kinds(ready_to_use=True)
-            data["kinds"] = [
-                site["kind_name"] for site in data["sites"]
-            ]
 
         structure = cls(**data)
 
@@ -257,20 +259,20 @@ class GetterMixin:
         for site in sites_collection:
 
             if "kind_name" in site.properties:
-                kind_name = site.properties["kind_name"]
+                kind_name = site.properties["kinds"]
             else:
                 kind_name = site.label
 
             site_info = {
-                "symbol": site.specie.symbol,
-                "mass": site.species.weight,
-                "position": site.coords.tolist(),
-                "charge": site.properties.get("charge", 0.0),
-                'magmom': site.properties.get("magmom").moment if "magmom" in site.properties.keys() else [0,0,0]
+                "symbols": site.specie.symbol,
+                "masses": site.species.weight,
+                "positions": site.coords.tolist(),
+                "charges": site.properties.get("charge", 0.0),
+                'magmoms': site.properties.get("magmom").moment if "magmom" in site.properties.keys() else [0,0,0]
             }
 
             if kind_name is not None:
-                site_info["kind_name"] = kind_name.replace("+", "").replace("-", "")
+                site_info["kinds"] = kind_name.replace("+", "").replace("-", "")
 
             inputs["sites"].append(site_info)
 
@@ -279,7 +281,7 @@ class GetterMixin:
         if detect_kinds:
             inputs["sites"] = structure.get_kinds(ready_to_use=True)
             inputs["kinds"] = [
-                site["kind_name"] for site in inputs["sites"]
+                site["kinds"] for site in inputs["sites"]
             ]
 
         structure = cls(**inputs)
@@ -303,7 +305,7 @@ class GetterMixin:
             if detect_kinds:
                 dict_repr["sites"] = self.get_kinds(ready_to_use=True)
                 dict_repr["kinds"] = [
-                    site["kind_name"] for site in dict_repr["sites"]
+                    site["kinds"] for site in dict_repr["sites"]
                 ]
 
             # dict_repr = get_serialized_data(dict_repr)
@@ -319,23 +321,10 @@ class GetterMixin:
         return np.array([getattr(this_site, property_name) for this_site in self.properties.sites])
 
     @classmethod
-    def get_supported_properties(cls, for_plugin_check=False):
-        """Get a list of properties.
-
-        Args:
-            for_plugin_check (bool, optional): If True, only include properties that need to be checked for a plugin. Defaults to False.
+    def get_supported_properties(cls):
+        """Get a list of properties that can be set for this structure.
         """
-
-        properties = {'direct': set(MutableStructureModel.model_fields.keys()), 'computed': set(MutableStructureModel.model_computed_fields.keys()), 'sites': set(Site.model_fields.keys())}
-
-        # in the following `default_properties` we don't put also the `computed`` ones. They depends on the other properties (`direct` and `site`).
-
-
-        if for_plugin_check:
-            for domain in ["direct","sites"]:
-                properties[domain] = set(properties[domain]).difference(_DEFAULT_PROPERTIES)
-
-        return properties
+        return set(MutableStructureModel.model_fields.keys())
 
     def check_plugin_support(self, plugin_properties):
         """
@@ -345,11 +334,11 @@ class GetterMixin:
         :rtype: set
         """
 
-        excluded_properties = self.get_supported_properties(for_plugin_check=True)
+        excluded_properties = self.get_supported_properties()
         defined_properties = self.get_defined_properties()
 
-        excluded_properties = set(excluded_properties["direct"]).union(excluded_properties["sites"])
-        defined_properties = set(defined_properties["direct"]).union(defined_properties["sites"]).difference(_DEFAULT_PROPERTIES)
+        excluded_properties = set(excluded_properties).union(excluded_properties)
+        defined_properties = set(defined_properties).union(defined_properties).difference(_DEFAULT_PROPERTIES)
 
         return defined_properties.difference(plugin_properties)
 
@@ -360,7 +349,7 @@ class GetterMixin:
         return self.get_site_property("magmom")
 
     def get_kind_names(self,):
-        return self.get_site_property("kind_name")
+        return self.get_site_property("kinds")
 
     def get_positions(self,):
         return self.get_site_property("position")
@@ -550,11 +539,11 @@ class GetterMixin:
         # should be this:
         # symbols = self.base.attributes.get("_property_attributes")['symbols']['value']
         # However, for now I do not let the kinds to be automatically generated when we initialise the structure:
-        symbols = self.get_site_property("symbol")
+        symbols = self.get_site_property("symbols")
         default_thresholds = {
-            "charge": 0.1,
-            "mass": 1e-4,
-            "magmom": 1e-4, # _MAGMOM_THRESHOLD
+            "charges": 0.1,
+            "masses": 1e-4,
+            "magmoms": 1e-4, # _MAGMOM_THRESHOLD
         }
 
         list_tags = []
@@ -572,9 +561,9 @@ class GetterMixin:
 
         # Step 1:
         kind_properties = []
-        kinds_dictionary = {"kind_name": {}}
+        kinds_dictionary = {"kinds": {}}
         for single_property in self.properties.sites[0].model_dump().keys():
-            if single_property not in ["symbol", "position", "kind_name",] + exclude:
+            if single_property not in ["symbols", "positions", "kinds",] + exclude:
                 #prop = self.get_site_property(single_property)
                 thr = custom_thr.get(
                     single_property, default_thresholds.get(single_property)
@@ -594,7 +583,7 @@ class GetterMixin:
 
         # Step 2:
         # kinds = np.zeros(len(self.get_site_property("symbol")), dtype=int) - 1
-        check_array = np.zeros(len(self.get_site_property("position")), dtype=int) -1
+        check_array = np.zeros(len(self.get_site_property("positions")), dtype=int) -1
         kind_names = symbols.tolist()
         kind_numeration = np.zeros_like(check_array, dtype=int)
         for i in range(len(k)):
@@ -624,14 +613,14 @@ class GetterMixin:
                 break
 
         # Step 3:
-        kinds_dictionary["kind_name"] = [
+        kinds_dictionary["kinds"] = [
             kind_names[i]  if not kind_tags[i] else kind_tags[i]
             for i in range(len(kind_tags))
         ]
 
         kinds_dictionary["index"] = kind_numeration
-        kinds_dictionary["symbol"] = symbols.tolist()
-        kinds_dictionary["position"] = self.get_site_property("position").tolist()
+        kinds_dictionary["symbols"] = symbols.tolist()
+        kinds_dictionary["positions"] = self.get_site_property("positions").tolist()
 
         # Step 4: check on the kind_tags consistency with the properties value.
         if check_kinds and not np.array_equal(check_array, array_tags):
@@ -656,9 +645,9 @@ class GetterMixin:
             for index_global, index_kind in enumerate(kinds_dictionary["index"]):
                 dict_site = {}
                 for k,v in kinds_dictionary.items():
-                    if k not in ["symbol","position","index"]:
+                    if k not in ["symbols","positions","index"]:
                         dict_site[k] = v[index_kind].tolist() if isinstance(v[index_kind], np.ndarray) else v[index_kind]
-                for value in ["symbol","position"]:
+                for value in ["symbols","positions"]:
                     # even for same kind, the position should be different
                     dict_site[value] = kinds_dictionary[value][index_global]
                 new_sites.append(dict_site)
@@ -771,58 +760,6 @@ class GetterMixin:
         """
         return self._get_object_pymatgen_molecule()
 
-    def _validate(self):
-        """Performs some standard validation tests."""
-        from aiida.common.exceptions import ValidationError
-        from aiida_atomistic.data.structure.utils import _get_valid_cell, _get_valid_pbc
-
-        super()._validate()
-
-        try:
-            _get_valid_cell(self.properties.cell)
-        except ValueError as exc:
-            raise ValidationError(f"Invalid cell: {exc}")
-
-        try:
-            _get_valid_pbc(self.properties.pbc)
-        except ValueError as exc:
-            raise ValidationError(f"Invalid periodic boundary conditions: {exc}")
-
-        self._validate_dimensionality()
-
-        try:
-            # This will try to create the kinds objects
-            kinds = set(self.get_site_property("kind_name"))
-        except ValueError as exc:
-            raise ValidationError(f"Unable to validate the kinds: {exc}")
-
-        from collections import Counter
-
-        counts = Counter([k for k in kinds])
-        for count in counts:
-            if counts[count] != 1:
-                raise ValidationError(
-                    f"Kind with name '{count}' appears {counts[count]} times instead of only one"
-                )
-
-        try:
-            # This will try to create the sites objects
-            sites = self.properties.sites
-        except ValueError as exc:
-            raise ValidationError(f"Unable to validate the sites: {exc}")
-
-        for site in sites:
-            if site.kind_name not in kinds:
-                raise ValidationError(
-                    f"A site has kind {site.kind_name}, but no specie with that name exists"
-                )
-
-        kinds_without_sites = {k for k in kinds} - {s.kind_name for s in sites}
-        if kinds_without_sites:
-            raise ValidationError(
-                f"The following kinds are defined, but there are no sites with that kind: {list(kinds_without_sites)}"
-            )
-
     def _prepare_xsf(self, main_file_name=""):
         """Write the given structure to a string of format XSF (for XCrySDen)."""
         if self.is_alloy or self.has_vacancies:
@@ -842,7 +779,7 @@ class GetterMixin:
             # I checked above that it is not an alloy, therefore I take the
             # first symbol
             return_string += (
-                f"{_atomic_numbers[self.get_kind(site.kind_name).symbols[0]]} "
+                f"{_atomic_numbers[self.get_kind(site.kinds).symbols[0]]} "
             )
             return_string += "%18.10f %18.10f %18.10f\n" % tuple(site.position)
         return return_string.encode("utf-8"), {}
@@ -893,7 +830,7 @@ class GetterMixin:
                     - center
                 ).tolist()
 
-                kind_name = base_site["kind_name"]
+                kind_name = base_site["kinds"]
                 kind_string = self.get_kind(kind_name).get_symbols_string()
 
                 atoms_json.append(
@@ -957,7 +894,7 @@ class GetterMixin:
             # first symbol
             return_list.append(
                 "{:6s} {:18.10f} {:18.10f} {:18.10f}".format(
-                    self.get_kind(site.kind_name).symbols[0],
+                    self.get_kind(site.kinds).symbols[0],
                     site.position[0],
                     site.position[1],
                     site.position[2],
@@ -1035,7 +972,7 @@ class GetterMixin:
         """
         from phonopy.structure.atoms import PhonopyAtoms
 
-        atoms = PhonopyAtoms(symbols=[_.kind_name for _ in self.properties.sites])
+        atoms = PhonopyAtoms(symbols=[_.kinds for _ in self.properties.sites])
         # Phonopy internally uses scaled positions, so you must store cell first!
         atoms.set_cell(self.properties.cell)
         atoms.set_positions([_.position for _ in self.properties.sites])
@@ -1054,7 +991,7 @@ class GetterMixin:
         asecell = ase.Atoms(cell=self.properties.cell, pbc=self.properties.pbc)
 
         for site in self.properties.sites:
-            asecell.append(site.to_ase(kinds=site.kind_name))
+            asecell.append(site.to_ase(kinds=site.kinds))
 
         # asecell.set_initial_charges(self.get_site_property("charge"))
 
@@ -1115,7 +1052,7 @@ class GetterMixin:
 
             oxidation_state = 0  # now I always set the oxidation_state to zero
             for site in self.properties.sites:
-                kind = site.kind_name
+                kind = site.kinds
                 if len(kind.symbols) != 1 or (
                     len(kind.weights) != 1 or sum(kind.weights) < 1.0
                 ):
@@ -1124,9 +1061,9 @@ class GetterMixin:
                     )
                 spin = (
                     -1
-                    if site.kind_name.endswith("1")
+                    if site.kinds.endswith("1")
                     else 1
-                    if site.kind_name.endswith("2")
+                    if site.kinds.endswith("2")
                     else 0
                 )
                 try:
@@ -1143,20 +1080,20 @@ class GetterMixin:
         else:
             # case when no spin are defined
             for site in self.properties.sites:
-                kind = site.kind_name
+                kind = site.kinds
                 specie = Specie(
-                    site.symbol,
-                    site.charge,
+                    site.symbols,
+                    site.charges,
                 )  # spin)
                 species.append(specie)
             # if any(
             #    create_automatic_kind_name(self.get_kind(name).symbols, self.get_kind(name).weights) != name
-            #    for name in self.get_site_property("kind_name")
+            #    for name in self.get_site_property("kinds")
             # ):
-            # add "kind_name" as a properties to each site, whenever
-            # the kind_name cannot be automatically obtained from the symbols
+            # add "kinds" as a properties to each site, whenever
+            # the kinds cannot be automatically obtained from the symbols
             additional_kwargs["site_properties"] = {
-                "kind_name": self.properties.kinds,
+                "kinds": self.properties.kinds,
                 "charge": self.properties.charges,
                 "magmom": self.properties.magmoms
             }
@@ -1166,7 +1103,7 @@ class GetterMixin:
                 f"Unrecognized parameters passed to pymatgen converter: {kwargs.keys()}"
             )
 
-        positions = [list(x.position) for x in self.properties.sites]
+        positions = [list(x.positions) for x in self.properties.sites]
 
         try:
             return Structure(
@@ -1204,17 +1141,17 @@ class GetterMixin:
         additional_kwargs = {}
 
         for site in self.properties.sites:
-            if hasattr(site, "weight"):
-                weight = site.weight
+            if hasattr(site, "weights"):
+                weight = site.weights
             else:
                 weight = 1
-            species.append({site.symbol: weight})
+            species.append({site.symbols: weight})
 
-        positions = [list(site.position) for site in self.properties.sites]
+        positions = [list(site.positions) for site in self.properties.sites]
         mol =  Molecule(species, positions)
 
         additional_kwargs["site_properties"] = {
-                "kind_name": self.properties.kinds,
+                "kinds": self.properties.kinds,
                 "charge": self.properties.charges,
                 "magmom": self.properties.magmoms
             }
@@ -1372,34 +1309,23 @@ class GetterMixin:
 
             Args:
                 exclude_defaults (bool): If True, properties with default values will be excluded from the result.
-
-            Returns:
-                dict: A dictionary with keys "direct", "computed", and "sites". Each key maps to a set of property names:
-                    - "direct": Properties directly defined in the structure.
-                    - "computed": Properties that are computed based on the structure.
-                    - "sites": Properties defined for individual sites within the structure.
         """
-        defined_properties = {"direct":set(), "computed":set(),"sites":set()}
-        supported_properties = self.get_supported_properties()
+        return set(self.properties.model_dump(exclude_defaults=True).keys()).difference(self.properties.transform_sites_list(
+            self.properties.model_dump(exclude_defaults=True)["sites"],
+            return_undefined=True)).difference(self.properties.model_computed_fields.keys())
 
-        for prop, value in self.properties.model_dump(exclude_defaults=exclude_defaults).items():
-            if isinstance(value, list):
-                if value.count(_default_values.get(prop, None)) == len(value):
-                    # Skip charges, magmoms if not defined for any site.
-                    continue
-                elif prop == "sites":
-                    site_properties = set() # I check on several sites
-                    for site_prop in value:
-                        site_properties = site_properties.union(site_prop.keys())
-                    defined_properties["sites"] = site_properties
-                else:
-                    defined_properties["direct" if prop in supported_properties["direct"] else "computed"].add(prop)
-            elif value is not _default_values.get(prop, None):
-                defined_properties["direct" if prop in supported_properties["direct"] else "computed"].add(prop)
+class SetterMixin(HubbardSetterMixin):
 
-        return defined_properties
+    def _validate_properties(self,):
+        """Validate the structure.
 
-class SetterMixin:
+        This method performs a series of checks to ensure that the structure's properties are consistent and valid.
+        It raises a ValueError if any inconsistency is found.
+
+        Returns:
+            None
+        """
+        return self.properties.validate_instance()
 
     def set_pbc(self, value):
         """Set the periodic boundary conditions."""
@@ -1414,14 +1340,23 @@ class SetterMixin:
         self.properties.cell = the_cell
 
     def set_cell_lengths(self, value):
-        raise NotImplementedError("Modification is not implemented yet")
+        raise NotImplementedError("This method is not implemented yet")
 
     def set_cell_angles(self, value):
-        raise NotImplementedError("Modification is not implemented yet")
+        raise NotImplementedError("This method is not implemented yet")
 
     def update_site(self, site_index, **kwargs):
         """Update the site at the given index."""
-        self.properties.sites[site_index].update(**kwargs)
+        for key, value in kwargs.items():
+            _value = getattr(self.properties, key, None)
+            if not _value:
+                if key in self.get_supported_properties():
+                    setattr(self.properties, key, [])
+                    _value = getattr(self.properties, key, None)
+                else:
+                    raise ValueError(f"Invalid key '{key}' for site properties.")
+            _value[site_index] = value
+        return
 
     def set_charges(self, value):
         if not len(self.properties.sites) == len(value):
@@ -1430,7 +1365,7 @@ class SetterMixin:
             )
         else:
             for site_index in range(len(value)):
-                self.update_site(site_index, charge=value[site_index])
+                self.update_site(site_index, charges=value[site_index])
 
     def set_magmoms(self, value):
         if not len(self.properties.sites) == len(value):
@@ -1439,16 +1374,16 @@ class SetterMixin:
             )
         else:
             for site_index in range(len(value)):
-                self.update_site(site_index, magmom=value[site_index])
+                self.update_site(site_index, magmoms=value[site_index])
 
-    def set_kind_names(self, value):
+    def set_kinds(self, value):
         if not len(self.properties.sites) == len(value):
             raise ValueError(
                 "The number of kind_names must be equal to the number of sites"
             )
         else:
             for site_index in range(len(value)):
-                self.update_site(site_index, kind_name=value[site_index])
+                self.update_site(site_index, kinds=value[site_index])
 
     def set_site_property(self, name: str, values: t.List):
         """
@@ -1458,26 +1393,26 @@ class SetterMixin:
         :param values (list): The values of the property for each site.
         """
 
-        for site, value in zip(self.properties.sites,values):
-            setattr(site, name, value)
+        for index, value in enumerate(values):
+            self.update_site(index, **{name: value})
 
-    def set_kind_property(self, name: str, values, kind_name):
+    def set_kind_property(self, name: str, kinds: str, value):
         """
         Set a property for all sites of a given kind.
 
         Parameters:
         :param name (str): The name of the property.
-        :param values: The values to set for each site.
-        :param kind_name (str): The name of the kind to filter sites.
+        :param value: The value to set for each site.
+        :param kind (str): The name of the kind to filter sites.
 
         Returns:
         None
         """
-        for site in self.properties.sites:
-            if site.kind_name == kind_name:
-                setattr(site, name, values)
+        for index, site in enumerate(self.properties.sites):
+            if  site.kinds == kinds:
+                self.update_site(index, **{name: value})
 
-    def add_atom(self, atom_info, index=-1):
+    def add_atom(self, index=-1, **atom_info):
 
         new_site = Site.atom_to_site(**atom_info)
         # I look for identical species only if the name is not specified
@@ -1485,9 +1420,9 @@ class SetterMixin:
 
         # check that the matrix is not singular. If it is, raise an error.
         # check to be done in the core.
-        for site_position in self.get_site_property("position"):
+        for site_position in self.properties.positions:
             if (
-                np.linalg.norm(np.array(new_site.position) - np.array(site_position))
+                np.linalg.norm(np.array(new_site.positions) - np.array(site_position))
                 < 1e-3
             ):
                 raise ValueError(
@@ -1497,29 +1432,55 @@ class SetterMixin:
         if len(self.properties.sites) < index:
             raise IndexError("insert_atom index out of range")
         else:
-            self.properties.sites.append(new_site) if index == -1 else self.properties.sites.insert(index, new_site)
+            """Update the site at the given index."""
+            for key, value in new_site.model_dump().items():
+                _value = getattr(self.properties, key, None)
+                if not _value:
+                    if key in self.get_supported_properties():
+                        setattr(self.properties, key, [])
+                        _value = getattr(self.properties, key, None)
+                    else:
+                        raise ValueError(f"Invalid key '{key}' for site properties.")
+                if index > -1:
+                    _value.insert(index, value)
+                else:
+                    _value.append(value)
+        return
 
-    def pop_atom(self, index=None):
+    def pop_atom(self, index=-1):
         # If no index is provided, pop the last item
-        if index is None:
-            return self.properties.sites.pop()
+        site = self.properties.sites[index]
         # Check if the provided index is valid
-        elif 0 <= index < len(self.properties.sites):
-            return self.properties.sites.pop(index)
-        else:
+        if index > len(self.properties.sites):
             raise IndexError("pop_atom index out of range")
+        else:
+            for key, value in site.model_dump().items():
+                _value = getattr(self.properties, key, None)
+                if not _value:
+                    raise ValueError(f"Invalid key '{key}' for site properties.")
+                else:
+                    _value.pop(index)
 
     def clear_sites(self,):
-        self.properties.sites = []
+        """Clear the sites, i.e. every property except pbc, cell and custom."""
+        mutable_dict = self.to_dict()
+        mutable_dict.pop("sites",None)
+
+        for prop in self.get_supported_properties():
+            if prop in ["pbc","cell","custom"]:
+                continue
+            else:
+                mutable_dict.pop(prop, None)
+
+        self.__init__(**mutable_dict)
+        return
+
 
     def clear_property(self, property_name):
         """Clear the given property."""
         mutable_dict = self.to_dict()
-        defined_properties = self.get_defined_properties()
-        if property_name in defined_properties["direct"]:
-            mutable_dict.pop(property_name, None)
-        elif property_name in defined_properties["sites"]:
-            for site in mutable_dict["sites"]:
-                site.pop(property_name, None)
+        mutable_dict.pop("sites",None)
+        mutable_dict.pop(property_name, None)
 
-        return self.__class__(**mutable_dict)
+        self.__init__(**mutable_dict)
+        return

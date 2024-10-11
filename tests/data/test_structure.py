@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 from aiida_atomistic.data.structure.structure import StructureData, StructureDataMutable
-from aiida_atomistic.data.structure.site import SiteMutable, SiteImmutable
+from aiida_atomistic.data.structure.site import SiteImmutable
 
 from pydantic import ValidationError
 
@@ -133,7 +133,7 @@ def test_mutability():
     assert any(m.properties.pbc)
     assert np.array_equal(
         m.properties.cell, [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]])
-    assert isinstance(m.properties.sites[0], SiteMutable)
+    assert isinstance(m.properties.sites[0], SiteImmutable)
 
     # test StructureDataMutable mutability
 

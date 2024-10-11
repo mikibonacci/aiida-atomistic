@@ -23,8 +23,8 @@ def supported_properties():
     return [
         "cell",
         "pbc",
-        "position",
-        "symbol",
+        "positions",
+        "symbols",
         "mass",
         "charge",
         "magmom",
@@ -43,9 +43,9 @@ def example_structure_dict():
         "cell": [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]],
         "sites": [
             {
-                "symbol": "Cu",
+                "symbols": "Cu",
                 "kind_name": "Cu2",
-                "position": [0.0, 0.0, 0.0],
+                "positions": [0.0, 0.0, 0.0],
                 "mass": 63.546,
                 "charge": 1.0,
                 "magmom": [0.0,0.0,0.0],
@@ -66,9 +66,9 @@ def example_nomass_structure_dict():
         "cell": [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]],
         "sites": [
             {
-                "symbol": "Cu",
+                "symbols": "Cu",
                 "kind_name": "Cu2",
-                "position": [0.0, 0.0, 0.0],
+                "positions": [0.0, 0.0, 0.0],
                 #"mass": 63.546,
                 "charge": 1.0,
                 "magmom": [0,0,0],
@@ -88,17 +88,17 @@ def example_wrong_structure_dict():
         "cell": [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]],
         "sites": [
             {
-                "symbol": "Cu",
+                "symbols": "Cu",
                 "kind_name": "Cu2",
-                "position": [0.0, 0.0, 0.0],
+                "positions": [0.0, 0.0, 0.0],
                 "mass": 63.546,
                 "charge": 1.0,
                 "magmom": [0,0,0],
             },
             {
-                "symbol": "Cu",
+                "symbols": "Cu",
                 "kind_name": "Cu2",
-                "position": [0.0, 0.0, 0.0],
+                "positions": [0.0, 0.0, 0.0],
                 "mass": 63.546,
                 "charge": 1.0,
                 "magmom": [0,0,0],
@@ -117,13 +117,13 @@ def example_structure_dict_for_kinds():
         'cell': [[2.8403, 0.0, 1.7391821518091137e-16],
         [-1.7391821518091137e-16, 2.8403, 1.7391821518091137e-16],
         [0.0, 0.0, 2.8403]],
-        'sites': [{'symbol': 'Fe',
+        'sites': [{'symbols': 'Fe',
         'mass': 55.845,
         'position': [0.0, 0.0, 0.0],
         'charge': 0.0,
         'magmom': [2.5, 0.1, 0.1],
         'kind_name': 'Fe'},
-        {'symbol': 'Fe',
+        {'symbols': 'Fe',
         'mass': 55.845,
         'position': [1.42015, 1.42015, 1.4201500000000002],
         'charge': 0.0,
@@ -152,7 +152,7 @@ def example_structure_dict_alloy():
     structure_dict ={
         'pbc': [True, True, True],
         'cell': [[0.0, 1.8, 1.8], [1.8, 0.0, 1.8], [1.8, 1.8, 0.0]],
-        'sites': [{'symbol': 'CuAl',
+        'sites': [{'symbols': 'CuAl',
         'position': [0.0, 0.0, 0.0],
         'weights': (0.5,0.5)
         }],}

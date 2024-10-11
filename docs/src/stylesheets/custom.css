@@ -1,0 +1,35 @@
+.md-typeset ul ul {
+  list-style-type: circle;
+}
+
+.md-typeset ul ul ul {
+  list-style-type: square;
+}
+
+.highlight span.filename {
+  background-color: #afadad;
+  line-height: 0.4;
+}
+
+.md-typeset h1 {
+  color: black;
+}
+
+:root {
+  --md-primary-fg-color:        #b1cf2b;
+  /* --md-primary-fg-color--light: #ECB7B7; */
+  /* --md-primary-fg-color--dark:  #90030C; */
+}
+
+.md-button {
+  padding: 0 6px 0 6px;
+  margin: 6px 8px 6px 8px;
+  min-width: 88px;
+  border-radius: 3px;
+  font-size: 14px;
+  text-align: center;
+  text-transform: uppercase;
+  text-decoration:none;
+  border: none;
+  outline: none;
+}

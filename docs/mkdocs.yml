@@ -1,0 +1,69 @@
+site_name: aiida-atomistic plugin and automated workflows
+
+docs_dir: src
+
+theme:
+  name: material
+  font:
+    text: Roboto
+  features:
+    - header.autohide
+    - content.code.copy
+    - content.code.select
+
+extra:
+  version:
+    provider: mike
+
+extra_css:
+  - stylesheets/custom.css
+
+markdown_extensions:
+  - pymdownx.arithmatex:
+      generic: true
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - attr_list
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+
+plugins:
+  - bibtex:
+      # `bib_file` takes precedence over `bib_dir`, if `bib_file` is defined,
+      # the bibtex plugin will use an absolute path to the file, meaning that
+      # we can only execute `mkdocs build` in the folder `REPO_root/docs`.
+      # With `bib_dir` the bibtex plugin will use a relative path to the
+      # `mkdocs.yml` file, and search recursively for all the bib files.
+      # Therefore, it is possible to execute `mkdocs build` in both the
+      # `REPO_root` and the `REPO_root/docs` folder, then readthedocs can build
+      # the docs (since readthedocs always builds the docs in the `REPO_root`).
+      # bib_file: refs.bib
+      bib_dir: .
+      # default "{number}", to avoid conflict with user-defined footnotes
+      footnote_format: "ref{number}"
+  - mkdocs-jupyter:
+      execute: false
+      include_requirejs: true
+      custom_mathjax_url: "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.7/latest.js?config=TeX-AMS_CHTML-full,Safe"
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+  # - javascripts/katex.js
+  # - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/katex.min.js
+  # - https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.7/contrib/auto-render.min.js
+
+nav:
+  - Home: README.md
+  - StructureData Intro: 01-structuredata.ipynb
+  - SuperCell Generation: 02-supercell-generation-and-more.ipynb
+  - Tutorial QE: 03-tutorial_qe.ipynb
+  - EoS Workgraph: 05-EoS_workgraph.ipynb
+  - Developer guide, Migration: 04-plugin_migration_guide.ipynb

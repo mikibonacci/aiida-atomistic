@@ -18,7 +18,15 @@ project:
     - file: 05-EoS_workgraph.ipynb
 
 site:
-  template: book-theme
+  template: article-theme
   # options:
   #   favicon: favicon.ico
   #   logo: site_logo.png
+
+parse:
+  myst_enable_extensions:
+    - html_admonition
+    - html_image
+    - colon_fence
+    - deflist
+    - linkify

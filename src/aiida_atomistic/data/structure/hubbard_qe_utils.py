@@ -104,7 +104,7 @@ class HubbardUtils:
 
         if not isinstance(self.hubbard_structure, StructureDataMutable):
             raise ValueError('the input is not of type `StructureDataMutable`, so it cannot be modified. \
-                             You can convert a `StructureData` to a `StructureDataMutable` with the `to_mutable` method.')
+                             You can convert a `StructureData` to a `StructureDataMutable` with the `get_value` method.')
 
         self.hubbard_structure.clear_hubbard_parameters()
         natoms = len(self.hubbard_structure.properties.sites)
@@ -186,7 +186,7 @@ class HubbardUtils:
 
         if not isinstance(self.hubbard_structure, StructureDataMutable):
             raise ValueError('the input is not of type `StructureDataMutable`, so it cannot be modified. \
-                             You can convert a `StructureData` to a `StructureDataMutable` with the `to_mutable` method.')
+                             You can convert a `StructureData` to a `StructureDataMutable` with the `get_value` method.')
 
         structure = self.hubbard_structure  # current
         reordered = structure.clone()  # to be set at the end
@@ -324,7 +324,7 @@ class HubbardUtils:
 
         supercell.properties.hubbard = new_hubbard
 
-        return supercell if mutable else supercell.to_immutable()
+        return supercell if mutable else StructureData.from_mutable(supercell)
 
 
 def get_supercell_atomic_index(index: int, num_sites: int, translation: List[Tuple[int, int, int]]) -> int:

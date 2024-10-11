@@ -153,10 +153,10 @@ def test_mutability():
     # check append_atom works properly
     m.add_atom(
         {
-            "symbol": "Cu",
+            "symbols": "Cu",
             "mass": 63.546,
             "kind_name": "Cu",
-            "position": [1.0, 0.0, -1.0],
+            "positions": [1.0, 0.0, -1.0],
             "charge": 0.0,
             "magmom": [0,0,0],
         },
@@ -177,10 +177,10 @@ def test_computed_fields(example_structure_dict):
         if isinstance(structure, StructureDataMutable):
             structure.add_atom(
             {
-                "symbol": "Cu",
+                "symbols": "Cu",
                 "mass": 63.546,
                 "kind_name": "Cu",
-                "position": [1.0, 0.0, -1.0],
+                "positions": [1.0, 0.0, -1.0],
                 "charge": 0.0,
                 "magmom": [0,0,0],
             },

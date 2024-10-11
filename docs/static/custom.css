@@ -1,0 +1,43 @@
+/* Custom CSS for MyST Documentation */
+
+/* Style for code blocks */
+.highlight pre {
+    background-color: #f8f9fa;
+    border-left: 4px solid #007bff;
+    padding: 10px;
+    font-size: 14px;
+}
+
+/* Style for inline code */
+code {
+    background-color: #e9ecef;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: monospace;
+}
+
+/* Example for customizing headings */
+h1 {
+    color: #0056b3;
+    border-bottom: 2px solid #0056b3;
+    padding-bottom: 5px;
+}
+
+/* Style for admonition boxes */
+.admonition {
+    background-color: #e2e3e5;
+    border-left: 4px solid #6c757d;
+}
+
+/* Style for added code (diff-style) */
+.code-added {
+    background-color: #ddffdd;
+    color: #228B22;
+}
+
+/* Style for removed code (diff-style) */
+.code-removed {
+    background-color: #ffdddd;
+    color: #B22222;
+    text-decoration: line-through;
+}

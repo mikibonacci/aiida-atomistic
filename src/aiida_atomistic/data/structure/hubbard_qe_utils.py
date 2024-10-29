@@ -195,7 +195,7 @@ class HubbardUtils:
         hubbard = structure.hubbard.model_copy()
         parameters = hubbard.to_list()
 
-        sites = structure.sites
+        sites = structure.properties.sites
         indices = get_hubbard_indices(hubbard=hubbard)
         hubbard_kinds = list(set(sites[index].kinds for index in indices))
         hubbard_kinds.sort(reverse=False)

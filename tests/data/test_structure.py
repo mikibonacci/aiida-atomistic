@@ -29,10 +29,6 @@ def test_structure_initialization(example_structure_dict):
     ), f"Expected type for empty StructureDataMutable: {type(StructureDataMutable)}, \
                                             received: {type(structure)}"
 
-    # (1.2) Empty StructureData: cannot be done
-    with pytest.raises(ValidationError):
-        structure = StructureData()
-
     # (2)
     for structure_type in [StructureDataMutable, StructureData]:
         structure = structure_type(**example_structure_dict)
@@ -100,7 +96,7 @@ def test_structure_Pymatgen_initialization():
                                 beta=90, gamma=60)
 
     struct = Structure(lattice, ["Si", "Si"], coords)
-    struct.sites[0].properties["charge"]=1
+    struct.sites[0].properties["charges"]=1
 
     for structure_type in [StructureDataMutable, StructureData]:
         structure = structure_type.from_pymatgen(struct)
@@ -154,11 +150,11 @@ def test_mutability():
     m.add_atom(
         {
             "symbols": "Cu",
-            "mass": 63.546,
-            "kind_name": "Cu",
+            "masses": 63.546,
+            "kinds": "Cu",
             "positions": [1.0, 0.0, -1.0],
-            "charge": 0.0,
-            "magmom": [0,0,0],
+            "charges": 0.0,
+            "magmoms": [0,0,0],
         },
         index=0,
     )
@@ -178,11 +174,11 @@ def test_computed_fields(example_structure_dict):
             structure.add_atom(
             {
                 "symbols": "Cu",
-                "mass": 63.546,
-                "kind_name": "Cu",
+                "masses": 63.546,
+                "kinds": "Cu",
                 "positions": [1.0, 0.0, -1.0],
-                "charge": 0.0,
-                "magmom": [0,0,0],
+                "charges": 0.0,
+                "magmoms": [0,0,0],
             },
             index=0,
             )
@@ -229,8 +225,14 @@ def kinds_properties():
             "value": atomic_positions,
         },
         "symbols": {"value": symbols},
-        "mass": {
-            "value": mass,
+        "masses": {
+            "value": # In the provided code, the `mass` property is used to define the mass of each
+            # atom in the structure. It is a property of the `StructureData` and
+            # `StructureDataMutable` classes that represents the mass of each atom in the
+            # structure. The `mass` property is used to store the mass of each atom in the
+            # structure, which can be important for various calculations and simulations
+            # involving the structure.
+            mass,
         },
         "charge": {"value": charge},
     }

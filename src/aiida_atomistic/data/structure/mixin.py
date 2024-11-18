@@ -499,6 +499,9 @@ class GetterMixin(HubbardGetterMixin):
         by computing the kinds with threshold=0 for each property.
 
         NB: for now, we exclude the `weights` property. TOBE implemented.
+        NB: can be improved, of course.
+
+        TODO: remove kind_tags and use only exclude and custom_thr.
 
 
         Algorithm:
@@ -517,8 +520,11 @@ class GetterMixin(HubbardGetterMixin):
         In Step 2 it checks for the matrix which rows have the same numbers in the same order, i.e. recognize the different
         kinds considering all the properties. This is done by subtracting a row from the others and see if all the elements
         are zero, meaning that we have the same combination of kinds.
+        In Step 2.2 it reorders the kind_numeration to start from 1 for each element.
+        In Step 2.3 it defines the new kind names.
+        In Step 3 it creates the dictionary with the new kinds.
+        In Step 4 it checks the consistency of the provided kind_tags with the properties values.
 
-        In Step 3 we override the kinds with the kind_tags.
 
         Args:
             kind_tags (list, optional): list of kind names as user defined: in principle this input trigger a check in the kind
@@ -541,6 +547,7 @@ class GetterMixin(HubbardGetterMixin):
         - Implementation can and should be improved, but the functionalities are the desired ones.
         - Moreover, the method should be accessible to run on a given properties dictionary, so to predict the kinds before the StructureData instance generation.
         """
+        from aiida_atomistic.data.structure.utils import order_k
 
         # cannot do properties.symbols.value due to recursion problem if called in Kinds:
         # if I call properties, this will again reinitialize the properties attribute and so on.
@@ -594,13 +601,18 @@ class GetterMixin(HubbardGetterMixin):
         kind_names = symbols.tolist()
         kind_numeration = np.zeros_like(check_array, dtype=int)
         for i in range(len(k)):
-            # Goes from the first symbol... so the numbers will be from zero to N (Please note: the symbol does not matter: Li0, Cu1... not Li0, Cu0.)
-            element = symbols[i]
+            #print('iteration ' , i)
+            # This starts from the first symbol... so the numbers will be from zero to N (Please note: the symbol does not matter: Li0, Cu1... not Li0, Cu0.)
+            # This will be fixed in step 2.3.
+
             diff = k - k[i]
             diff_sum = np.sum(np.abs(diff), axis=1)
 
-            # kinds[np.where(diff_sum == 0)[0]] = i
+            # checking the same kinds
+            #print('where is, ', np.where(diff_sum == 0)[0])
             for where in np.where(diff_sum == 0)[0]:
+                element = symbols[where]
+                #print('where iteration ', where)
                 if not check_array[where] == -1:
                     continue
                 if (
@@ -610,27 +622,28 @@ class GetterMixin(HubbardGetterMixin):
                 else:
                     kind_numeration[where] = i
 
-                kind_names[where] = f"{element}{kind_numeration[where]}"
-
-                check_array[where] = i
-                #print(f"site {where} is {element}{kind_numeration[-1]}")
-
             if len(np.where(check_array == -1)[0]) == 0:
                 #print(f"search ended at iteration {i}")
                 break
 
-        # Step 3:
-        kinds_dictionary["kinds"] = [
-            kind_names[i]  if not kind_tags[i] else kind_tags[i]
-            for i in range(len(kind_tags))
-        ]
+        # Step 2.2 Define the new kind names
+        # Step 2.2.1 Re-order kind_numeration (to start from 1, not from 0, for each new element).
+        for element in set(symbols):
+            element_wise_k = kind_numeration[np.where(symbols== element)[0]]
+            kk = order_k(element_wise_k)
+            kind_numeration[np.where(symbols == element)[0]] = kk
 
-        kinds_dictionary["index"] = kind_numeration
+        # Step 2.3: Define the new kind names
+        for ind, (element, kind_number) in enumerate(zip(symbols, kind_numeration)):
+            kind_names[ind] = f"{element}{kind_number}"
+
+
+        # Step 3:
+        kinds_dictionary["kinds"] =kind_names
+
+        kinds_dictionary["index"] = kind_numeration - 1 # kinds_numeration starts from 1, here we want to start from 0
         kinds_dictionary["symbols"] = symbols.tolist()
         kinds_dictionary["positions"] = self.get_site_property("positions").tolist()
-
-        # we delete the index key, as it is not a property
-        kinds_dictionary.pop("index", None)
 
         # Step 4: check on the kind_tags consistency with the properties value.
         if check_kinds and not np.array_equal(check_array, array_tags):
@@ -638,18 +651,6 @@ class GetterMixin(HubbardGetterMixin):
                 "The kinds you provided in the `kind_tags` input are not correct, as properties values are not consistent with them. Please check that this is what you want."
             )
 
-        '''if ready_to_use:
-            new_sites = []
-            for index_kind in kinds_dictionary["index"]:
-                dict_site = {}
-                for k,v in kinds_dictionary.items():
-                    if k not in ["symbol","position","index"]:
-                        dict_site[k] = v[index_kind].tolist() if isinstance(v[index_kind], np.ndarray) else v[index_kind]
-                for value in ["symbol","position"]:
-                    dict_site[value] = kinds_dictionary[value][index_kind]
-                new_sites.append(dict_site)
-            return new_sites
-        '''
         if ready_to_use:
             new_sites = []
             for index_global, index_kind in enumerate(kinds_dictionary["index"]):
@@ -661,7 +662,11 @@ class GetterMixin(HubbardGetterMixin):
                     # even for same kind, the position should be different
                     dict_site[value] = kinds_dictionary[value][index_global]
                 new_sites.append(dict_site)
+
             return new_sites
+
+        # we delete the index key, as it is not a property
+        kinds_dictionary.pop("index", None)
 
         return kinds_dictionary
 
@@ -1237,11 +1242,11 @@ class GetterMixin(HubbardGetterMixin):
 
             indexes = np.array((prop_array-np.min(prop_array))/thr,dtype=int)
 
-        To understand this, try to draw the problem considering prop_array=[1,2,3,4] and thr=0.5.
+        To understand this, try to draw the problem considering prop_array=[1.6,2,3.2,4] and thr=0.5.
         This methods allows to efficiently clusterize the point using the defined threshold.
 
         At the end, we reorder the kinds from zero (to have ordered list like Li0, Li1...).
-        Basically we define the set of unordered kinds, and the range(len(set(kinds))) being the group of orderd kinds.
+        Basically we define the set of unordered kinds, and the range(len(set(kinds))) being the group of ordered kinds.
         Then we basically do a mapping with the np.where().
 
         Args:

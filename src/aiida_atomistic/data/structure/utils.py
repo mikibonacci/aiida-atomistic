@@ -841,7 +841,7 @@ def generate_striped_structure(structure: StructureData, to_be_striped: List) ->
     mutable = structure.get_value()
     for key in to_be_striped:
         mutable = mutable.clear_property(key)
-    return mutable.to_immutable(detect_kinds=True)
+    return StructureData.from_mutable(mutable, detect_kinds=True)
 
 
 def order_k(k):

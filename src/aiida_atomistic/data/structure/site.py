@@ -71,7 +71,7 @@ class FrozenList(list):
     def __setitem__(self, index, value):
         raise ValueError("This list is immutable. Site properties cannot be modified. \
             Please modify them using the `update_site` method of the `StructureDataMutable` object. \
-                If your object is the AiiDA immutable `StructureData` object, you can create a mutable copy of it using the `get_value` method.")
+                If your object is the AiiDA immutable `StructureData` object, you can create a mutable copy of it using its `get_value` method.")
 
 class SiteCore(BaseModel):
     """This class contains the core information about a given site of the system.

@@ -403,5 +403,5 @@ class ImmutableStructureModel(StructureBaseModel):
     def __setattr__(self, key, value):
         # Customizing the exception message when trying to mutate attributes
         if key in self.__fields__:
-            raise ValueError("The AiiDA `StructureData` is immutable. You can create a mutable copy of it using the `get_value` method.")
+            raise ValueError("The AiiDA `StructureData` is immutable. You can create a mutable copy of it using its `get_value` method.")
         super().__setattr__(key, value)

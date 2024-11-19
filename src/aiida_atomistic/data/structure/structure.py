@@ -78,7 +78,7 @@ class StructureData(Data, GetterMixin):
     @classmethod
     def from_mutable(cls, mutable_structure, detect_kinds: bool = False):
         if not isinstance(mutable_structure, StructureDataMutable):
-            raise ValueError("Input structure should be of type StructureDataMutable")
+            raise ValueError(f"Input structure should be of type StructureDataMutable, not {type(mutable_structure)}")
         return cls(**mutable_structure.to_dict(detect_kinds=detect_kinds))
 
     def get_value(self, detect_kinds: bool = False):

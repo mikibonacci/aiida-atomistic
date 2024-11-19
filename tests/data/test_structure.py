@@ -249,14 +249,14 @@ def test_get_kinds(example_structure_dict_for_kinds, complex_example_structure_d
         new_structure = structure_type(**structure.to_dict(detect_kinds=True))
 
         assert new_structure.properties.kinds == ['Mn1', 'Mn2', 'Mn1', 'Mn2', 'Mn3', 'Mn3', 'Sn1', 'Sn1']
-        assert new_structure.properties.magmoms == [[1.5000000000000002, 2.598076211353316, 0.0],
-                                                    [-3.0, 0.0, 0.0],
-                                                    [1.5000000000000002, 2.598076211353316, 0.0],
-                                                    [-3.0, 0.0, 0.0],
-                                                    [1.4999999999999998, -2.598076211353316, 0.0],
-                                                    [1.4999999999999998, -2.598076211353316, 0.0],
-                                                    [0.0, 0.0, 0.0],
-                                                    [0.0, 0.0, 0.0]]
+        assert new_structure.properties.magmoms == [[1.5, 2.5981, 0.0],
+                                [-3.0, 0.0, 0.0],
+                                [1.5, 2.5981, 0.0],
+                                [-3.0, 0.0, 0.0],
+                                [1.5, -2.5981, 0.0],
+                                [1.5, -2.5981, 0.0],
+                                [0.0, 0.0, 0.0],
+                                [0.0, 0.0, 0.0]]
 
 def test_set_automatic_kinds(complex_example_structure_dict_for_kinds):
     '''
@@ -270,14 +270,14 @@ def test_set_automatic_kinds(complex_example_structure_dict_for_kinds):
     # set the automatic kinds
     structure.set_automatic_kinds()
     assert structure.properties.kinds == ['Mn1', 'Mn2', 'Mn1', 'Mn2', 'Mn3', 'Mn3', 'Sn1', 'Sn1']
-    assert structure.properties.magmoms == [[1.5000000000000002, 2.598076211353316, 0.0],
-                                                    [-3.0, 0.0, 0.0],
-                                                    [1.5000000000000002, 2.598076211353316, 0.0],
-                                                    [-3.0, 0.0, 0.0],
-                                                    [1.4999999999999998, -2.598076211353316, 0.0],
-                                                    [1.4999999999999998, -2.598076211353316, 0.0],
-                                                    [0.0, 0.0, 0.0],
-                                                    [0.0, 0.0, 0.0]]
+    assert structure.properties.magmoms == [[1.5, 2.5981, 0.0],
+                                [-3.0, 0.0, 0.0],
+                                [1.5, 2.5981, 0.0],
+                                [-3.0, 0.0, 0.0],
+                                [1.5, -2.5981, 0.0],
+                                [1.5, -2.5981, 0.0],
+                                [0.0, 0.0, 0.0],
+                                [0.0, 0.0, 0.0]]
 
 def test_alloy(example_structure_dict_alloy):
 

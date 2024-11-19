@@ -583,7 +583,7 @@ class GetterMixin(HubbardGetterMixin):
                 kinds_dictionary[single_property] = {}
 
                 kinds_per_property = self._to_kinds(
-                    property_name=single_property, symbols=symbols, thr=thr
+                    property_name=single_property, thr=thr
                 )
 
                 kind_properties.append(kinds_per_property[0])
@@ -632,7 +632,7 @@ class GetterMixin(HubbardGetterMixin):
             kind_numeration[np.where(symbols == element)[0]] = kk
 
         # Step 2.3: Define the new kind names
-        print(symbols,kind_numeration)
+        #print(symbols,kind_numeration)
         for ind, (element, kind_number) in enumerate(zip(symbols, kind_numeration)):
             kind_names[ind] = f"{element}{kind_number}"
 
@@ -1216,7 +1216,7 @@ class GetterMixin(HubbardGetterMixin):
 
         return
 
-    def _to_kinds(self, property_name, symbols, thr: float = 0):
+    def _to_kinds(self, property_name, thr: float = 0):
         """Called by the `get_kinds` function.
         Get the kinds for a generic site property. Can also be overridden in the specific property.
 
@@ -1245,7 +1245,7 @@ class GetterMixin(HubbardGetterMixin):
                                 can be used in the matrix representation (the k.T).
             kinds_values: list of the associated property value to each kind detected.
         """
-        symbols_array = np.array(symbols)
+        symbols_array = np.array(self.properties.symbols)
 
         if isinstance(self.get_site_property(property_name)[0], list) or isinstance(self.get_site_property(property_name)[0], np.ndarray):
             #reference_array = np.array(self.get_site_property(property_name)[0]) # I take the difference to detect also the case [1,0,0] != [-1,0,0]
@@ -1283,7 +1283,11 @@ class GetterMixin(HubbardGetterMixin):
         for i in range(len(list_set_indexes)):
             kinds_labels[np.where(indexes == list_set_indexes[i])[0]] = i
 
-        return kinds_labels, kinds_values
+        # now we truncate the kinds_values considering the threshold magnitude
+        truncation_order = int(np.log10(thr)*np.sign(np.log10(thr)))
+        truncated_kinds_values = np.round(kinds_values, truncation_order)
+
+        return kinds_labels, truncated_kinds_values
 
     def __getitem__(self, index):
         "ENABLE SLICING. Return a sliced StructureData."

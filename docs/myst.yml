@@ -21,6 +21,6 @@ project:
 
 site:
   template: book-theme
-  # options:
+  options:
   #   favicon: favicon.ico
-  #logo: images/atomistic_logo.png
+    logo: source/images/atomistic_logo.png

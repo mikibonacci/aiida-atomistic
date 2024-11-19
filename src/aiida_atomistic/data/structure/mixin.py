@@ -114,7 +114,9 @@ class GetterMixin(HubbardGetterMixin):
         structure = cls(**data)
 
         if detect_kinds:
-            data["sites"] = structure.get_kinds(ready_to_use=True)
+            data_kinds = structure.get_kinds()
+            data.pop('sites', None)
+            data.update(data_kinds)
 
         structure = cls(**data)
 
@@ -285,10 +287,10 @@ class GetterMixin(HubbardGetterMixin):
         structure = cls(**inputs)
 
         if detect_kinds:
-            inputs["sites"] = structure.get_kinds(ready_to_use=True)
-            inputs["kinds"] = [
-                site["kinds"] for site in inputs["sites"]
-            ]
+            inputs = structure.get_kinds()
+            inputs_kinds = structure.get_kinds()
+            inputs.pop('sites', None)
+            inputs.update(inputs_kinds)
 
         structure = cls(**inputs)
 
@@ -309,11 +311,9 @@ class GetterMixin(HubbardGetterMixin):
             dict_repr = copy.deepcopy(self.properties.model_dump())
 
             if detect_kinds:
-                dict_repr["sites"] = self.get_kinds(ready_to_use=True)
-                dict_repr["kinds"] = [
-                    site["kinds"] for site in dict_repr["sites"]
-                ]
-
+                dict_repr_kinds = self.get_kinds()
+                dict_repr.pop('sites', None)
+                dict_repr.update(dict_repr_kinds)
             # dict_repr = get_serialized_data(dict_repr)
 
             return dict_repr
@@ -349,19 +349,19 @@ class GetterMixin(HubbardGetterMixin):
         return defined_properties.difference(plugin_properties)
 
     def get_charges(self,):
-        return self.get_site_property("charge")
+        return self.get_site_property("charges")
 
     def get_magmoms(self,):
-        return self.get_site_property("magmom")
+        return self.get_site_property("magmoms")
 
     def get_kind_names(self,):
         return self.get_site_property("kinds")
 
     def get_positions(self,):
-        return self.get_site_property("position")
+        return self.get_site_property("positions")
 
     def get_symbols(self,):
-        return self.get_site_property("symbol")
+        return self.get_site_property("symbols")
 
     def get_cell_volume(self):
         """Returns the three-dimensional cell volume in Angstrom^3.
@@ -492,7 +492,7 @@ class GetterMixin(HubbardGetterMixin):
             f"mode `{mode}` is invalid, choose from `full`, `reduced` or `fractional`."
         )
 
-    def get_kinds(self, kind_tags=[], exclude=[], custom_thr={}, ready_to_use=False):
+    def get_kinds(self, kind_tags=[], exclude=[], custom_thr={}):
         """
         Get the list of kinds, taking into account all the properties.
         If the list of kinds is already provided--> len(kind_tags)>0, we check the consistency of it
@@ -502,7 +502,6 @@ class GetterMixin(HubbardGetterMixin):
         NB: can be improved, of course.
 
         TODO: remove kind_tags and use only exclude and custom_thr.
-
 
         Algorithm:
         it generated the kinds_list for each property separately in Step 1, then
@@ -524,7 +523,6 @@ class GetterMixin(HubbardGetterMixin):
         In Step 2.3 it defines the new kind names.
         In Step 3 it creates the dictionary with the new kinds.
         In Step 4 it checks the consistency of the provided kind_tags with the properties values.
-
 
         Args:
             kind_tags (list, optional): list of kind names as user defined: in principle this input trigger a check in the kind
@@ -634,6 +632,7 @@ class GetterMixin(HubbardGetterMixin):
             kind_numeration[np.where(symbols == element)[0]] = kk
 
         # Step 2.3: Define the new kind names
+        print(symbols,kind_numeration)
         for ind, (element, kind_number) in enumerate(zip(symbols, kind_numeration)):
             kind_names[ind] = f"{element}{kind_number}"
 
@@ -650,20 +649,6 @@ class GetterMixin(HubbardGetterMixin):
             raise ValueError(
                 "The kinds you provided in the `kind_tags` input are not correct, as properties values are not consistent with them. Please check that this is what you want."
             )
-
-        if ready_to_use:
-            new_sites = []
-            for index_global, index_kind in enumerate(kinds_dictionary["index"]):
-                dict_site = {}
-                for k,v in kinds_dictionary.items():
-                    if k not in ["symbols","positions","index"]:
-                        dict_site[k] = v[index_kind].tolist() if isinstance(v[index_kind], np.ndarray) else v[index_kind]
-                for value in ["symbols","positions"]:
-                    # even for same kind, the position should be different
-                    dict_site[value] = kinds_dictionary[value][index_global]
-                new_sites.append(dict_site)
-
-            return new_sites
 
         # we delete the index key, as it is not a property
         kinds_dictionary.pop("index", None)

@@ -102,7 +102,7 @@ def test_structure_Pymatgen_initialization():
         assert structure.properties.charges == [1, 0]
         assert structure.properties.magmoms == [[0.0, 0.0, 0.0], [0.0, 0.0, 0.0]]
 
-def test_mutability():
+def test_immutability():
     atoms = bulk("Cu", "fcc", a=3.6)
     # test StructureData
     s = StructureData.from_ase(atoms)
@@ -119,6 +119,9 @@ def test_mutability():
 
     with pytest.raises(ValueError):
         s.properties.pbc = [True, False, True]
+
+    with pytest.raises(ValueError):
+        s.properties.sites[0].symbols = "Cu"
 
     # test StructureDataMutable
     m = StructureDataMutable.from_ase(atoms)

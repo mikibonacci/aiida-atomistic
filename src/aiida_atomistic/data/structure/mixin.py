@@ -287,7 +287,7 @@ class GetterMixin(HubbardGetterMixin):
         structure = cls(**inputs)
 
         if detect_kinds:
-            inputs = structure.get_kinds()
+            inputs_kinds = structure.get_kinds()
             inputs_kinds = structure.get_kinds()
             inputs.pop('sites', None)
             inputs.update(inputs_kinds)

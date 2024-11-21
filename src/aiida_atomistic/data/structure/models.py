@@ -287,6 +287,19 @@ class StructureBaseModel(BaseModel):
         from aiida_atomistic.data.structure.utils import get_formula
         return get_formula(self.symbols)
 
+    @computed_field
+    def is_alloy(self) -> dict:
+        """
+        Computed field to determine if the structure is an alloy.
+        """
+        return  any(_.is_alloy for _ in self.sites)
+
+    @computed_field
+    def has_vacancies(self) -> bool:
+        """
+        Computed field to determine if the structure has vacancies.
+        """
+        return any(_.has_vacancies for _ in self.sites)
 
     @staticmethod
     def transform_sites_list(sites = [], return_undefined=False):

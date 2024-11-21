@@ -91,7 +91,9 @@ def example_dumped_structure_dict():
             'magmoms': [0.0, 0.0, 0.0],
             'weights': (1.0,)
         }],
-        'formula': 'Cu'
+        'formula': 'Cu',
+        'is_alloy': False,
+        'has_vacancies': False,
     }
     return dumped_dict
 

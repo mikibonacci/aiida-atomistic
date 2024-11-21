@@ -24,4 +24,4 @@ site:
   template: book-theme
   options:
   #   favicon: favicon.ico
-    logo: source/images/atomistic_logo.png
+    logo: source/images/atomistic_logo.webp

@@ -270,7 +270,7 @@ class StructureBaseModel(BaseModel):
         md = self.model_dump(
             exclude=_GLOBAL_PROPERTIES+list(self.model_computed_fields.keys())
             )
-        r
+
         def from_dict_to_list(md):
             transformed_list = [
                 {key: value[i] if isinstance(value, list) else _DEFAULT_VALUES[key] for key, value in md.items()}

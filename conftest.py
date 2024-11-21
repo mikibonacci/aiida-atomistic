@@ -48,7 +48,6 @@ def example_structure_dict():
                 "positions": [0.0, 0.0, 0.0],
                 "masses": 63.546,
                 "charges": 1.0,
-                #"magmoms": [0.0,0.0,0.0],
                 "weights": (1,)
             }
         ],
@@ -109,7 +108,6 @@ def example_nomass_structure_dict():
                 "symbols": "Cu",
                 "kinds": "Cu2",
                 "positions": [0.0, 0.0, 0.0],
-                #"mass": 63.546,
                 "charges": 1.0,
                 "magmoms": [0,0,0],
             }

@@ -14,49 +14,12 @@ from aiida_atomistic.data.structure.site import SiteImmutable, FrozenList, freez
 
 from aiida_quantumespresso.common.hubbard import Hubbard
 
-try:
-    import ase  # noqa: F401
-    from ase import io as ase_io
-
-    has_ase = True
-    ASE_ATOMS_TYPE = ase.Atoms
-except ImportError:
-    has_ase = False
-
-    ASE_ATOMS_TYPE = t.Any
-
-try:
-    import pymatgen.core as core  # noqa: F401
-
-    has_pymatgen = True
-    PYMATGEN_MOLECULE = core.structure.Molecule
-    PYMATGEN_STRUCTURE = core.structure.Structure
-except ImportError:
-    has_pymatgen = False
-
-    PYMATGEN_MOLECULE = t.Any
-    PYMATGEN_STRUCTURE = t.Any
-
-# should be moved in the init.
-_MASS_THRESHOLD = 1.0e-3
-# Threshold to check if the sum is one or not
-_SUM_THRESHOLD = 1.0e-6
-# Default cell
-_DEFAULT_CELL = [[0.0, 0.0, 0.0]] * 3
-_DEFAULT_PBC = [True, True, True]
-
-_DEFAULT_VALUES = {
-    "kinds": "",
-    "masses": 0,
-    "charges": 0,
-    "magmoms": [0, 0, 0],
-    "hubbard": None,
-    "weights": (1,)
-}
-
-_valid_symbols = tuple(i["symbol"] for i in elements.values())
-_atomic_masses = {el["symbol"]: el["mass"] for el in elements.values()}
-_atomic_numbers = {data["symbol"]: num for num, data in elements.items()}
+from . import (
+    _atomic_masses,
+    _DEFAULT_VALUES,
+    _DEFAULT_CELL,
+    _DEFAULT_PBC,
+)
 
 class StructureBaseModel(BaseModel):
     """
@@ -211,7 +174,7 @@ class StructureBaseModel(BaseModel):
                 raise ValueError("Length of kinds does not match the number of symbols")
         if "masses" not in data.keys():
             data["masses"] = [_atomic_masses[s] if s in _atomic_masses.keys() else _DEFAULT_VALUES["masses"]
-                              for s in data["symbols"]]
+                        for s in data["symbols"]]
         else:
             if len(data["masses"]) != len(data['symbols']):
                 raise ValueError("Length of masses does not match the number of symbols")

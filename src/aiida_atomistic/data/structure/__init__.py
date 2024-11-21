@@ -60,3 +60,12 @@ _DEFAULT_VALUES = {
     "hubbard": None,
     "weights": (1,)
 }
+
+_GLOBAL_PROPERTIES = [
+    "pbc",
+    "cell",
+    "custom",
+    "hubbard",
+    "cell_magmom",
+    "cell_charge",
+]

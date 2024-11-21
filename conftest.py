@@ -94,6 +94,8 @@ def example_dumped_structure_dict():
         'formula': 'Cu',
         'is_alloy': False,
         'has_vacancies': False,
+        'cell_magmom': None,
+        'cell_charge': None,
     }
     return dumped_dict
 

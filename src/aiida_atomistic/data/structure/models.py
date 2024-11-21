@@ -19,6 +19,7 @@ from . import (
     _DEFAULT_VALUES,
     _DEFAULT_CELL,
     _DEFAULT_PBC,
+    _GLOBAL_PROPERTIES,
 )
 
 class StructureBaseModel(BaseModel):
@@ -30,10 +31,12 @@ class StructureBaseModel(BaseModel):
         cell (Optional[List[List[float]]]): The cell vectors defining the unit cell of the structure.
     """
 
+    # global and general properties
     pbc: t.Optional[t.List[bool]] = Field(min_length=3, max_length=3, default = _DEFAULT_PBC)
     cell: t.Optional[t.List[t.List[float]]] = Field(default  = _DEFAULT_CELL)
     custom: t.Optional[dict] = Field(default=None)
 
+    ## site properties
     symbols: t.Union[t.List[str], t.List[t.List[str]]] = Field(default=[])
     positions: t.List[t.List[float]] = Field(default=[])
 
@@ -44,6 +47,9 @@ class StructureBaseModel(BaseModel):
     charges: t.Optional[t.List[float]] = Field(default=None)
     magmoms: t.List[t.List[float]] = Field(default=None)
 
+    # global and more specific properties
+    cell_magmom: t.Optional[float] = Field(default=None)
+    cell_charge: t.Optional[float] = Field(default=None)
     hubbard: t.Optional[Hubbard] = Field(default=Hubbard(parameters=[]))
 
     class Config:
@@ -262,7 +268,7 @@ class StructureBaseModel(BaseModel):
             FrozenList[SiteImmutable]: The sites in the structure.
         """
         md = self.model_dump(
-            exclude=["pbc","cell","custom","hubbard"]+list(self.model_computed_fields.keys())
+            exclude=_GLOBAL_PROPERTIES+list(self.model_computed_fields.keys())
             )
 
         def from_dict_to_list(md):

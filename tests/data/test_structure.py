@@ -74,7 +74,7 @@ def test_RedundantKind(example_structure_dict):
         assert structure.properties.sites[0].kinds == structure.sites[0].kind_name
         assert structure.properties.sites[0].positions == structure.sites[0].position
         
-        for kind, site in zip(self.kinds, self.properties.sites):
+        for kind, site in zip(structure.kinds, structure.properties.sites):
             kind.mass = site.masses
             kind.symbol = site.symbols
             kind.weights = site.weights

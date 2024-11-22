@@ -72,6 +72,19 @@ _DEFAULT_THRESHOLDS = {
             "magmoms": 1e-4, # _MAGMOM_THRESHOLD
         }
 
+class RedundantKind:
+    """
+    A class to resemble the Kind class as we find in aiida-core.
+    This is done in order to help a lot the plugin migration, as structure.kinds 
+    is used really often.
+    """
+    def __init__(self, site_instance):
+        self.mass = site_instance.masses
+        self.symbol = site_instance.symbols
+        self.weights = site_instance.weights
+        self.name = site_instance.kinds
+        
+
 class GetterMixin(HubbardGetterMixin):
 
     # Start redundant properties: This is mainly for make easier migrations
@@ -86,6 +99,12 @@ class GetterMixin(HubbardGetterMixin):
     @property
     def sites(self):
         return self.properties.sites
+    
+    @property
+    def kinds(self):
+        # This helps in plugin migration, 
+        # a lot of them use kinds as defined in orm.StructureData
+        return [RedundantKind(site) for site in self.properties.sites]
     # End redundant properties.
 
     @property
@@ -389,6 +408,15 @@ class GetterMixin(HubbardGetterMixin):
         """
         from aiida_atomistic.data.structure.utils import calc_cell_volume
         return calc_cell_volume(self.properties.cell)
+    
+    def get_symbols_set(self):
+        """Return a set containing the names of all elements involved in
+        this structure (i.e., for it joins the list of symbols for each
+        kind k in the structure).
+
+        :returns: a set of strings of element names.
+        """
+        return set(itertools.chain.from_iterable(site.kinds for site in self.sites))
 
     def get_cif(self, converter="ase", store=False, **kwargs):
         """Creates :py:class:`aiida.orm.nodes.data.cif.CifData`.

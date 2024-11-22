@@ -64,6 +64,23 @@ def test_redundant(example_structure_dict):
         assert structure.properties.sites[0].kinds == structure.sites[0].kind_name
         assert structure.properties.sites[0].positions == structure.sites[0].position
 
+def test_RedundantKind(example_structure_dict):
+    
+    from aiida_atomistic.data.structure.mixin import RedundantKind
+    for structure_type in [StructureDataMutable, StructureData]:
+        structure = structure_type(**example_structure_dict)
+
+        assert any([isinstance(kind, RedundantKind) for kind in structure.kinds])
+        assert structure.properties.sites[0].kinds == structure.sites[0].kind_name
+        assert structure.properties.sites[0].positions == structure.sites[0].position
+        
+        for kind, site in zip(self.kinds, self.properties.sites):
+            kind.mass = site.masses
+            kind.symbol = site.symbols
+            kind.weights = site.weights
+            kind.name = site.kinds
+    
+
 # StructureData methods:
 
 def test_dict(example_structure_dict,example_dumped_structure_dict):

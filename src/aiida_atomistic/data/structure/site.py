@@ -107,6 +107,16 @@ class SiteCore(BaseModel):
 
         return data
 
+    # Start of redundant properties to make easier plugin migrations
+    @property
+    def kind_name(self):
+        return self.kinds
+
+    @property
+    def position(self):
+        return self.positions
+    # End of redundant properties
+
     @property
     def is_alloy(self):
         """Return whether the Site is an alloy, i.e. contains more than one element

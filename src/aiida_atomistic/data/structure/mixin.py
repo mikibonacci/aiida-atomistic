@@ -74,6 +74,20 @@ _DEFAULT_THRESHOLDS = {
 
 class GetterMixin(HubbardGetterMixin):
 
+    # Start redundant properties: This is mainly for make easier migrations
+    @property
+    def cell(self):
+        return self.properties.cell
+
+    @property
+    def pbc(self):
+        return self.properties.pbc
+
+    @property
+    def sites(self):
+        return self.properties.sites
+    # End redundant properties.
+
     @property
     def is_alloy(self):
         return any(_.is_alloy for _ in self.properties.sites)

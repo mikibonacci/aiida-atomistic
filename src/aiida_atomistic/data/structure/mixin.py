@@ -83,6 +83,8 @@ class RedundantKind:
         self.symbol = site_instance.symbols
         self.weights = site_instance.weights
         self.name = site_instance.kinds
+        self.has_vacancies = site_instance.has_vacancies
+        self.is_alloy = site_instance.is_alloy
         
 
 class GetterMixin(HubbardGetterMixin):

@@ -75,7 +75,7 @@ _DEFAULT_THRESHOLDS = {
 class RedundantKind:
     """
     A class to resemble the Kind class as we find in aiida-core.
-    This is done in order to help a lot the plugin migration, as structure.kinds 
+    This is done in order to help a lot the plugin migration, as structure.kinds
     is used really often.
     """
     def __init__(self, site_instance):
@@ -85,7 +85,7 @@ class RedundantKind:
         self.name = site_instance.kinds
         self.has_vacancies = site_instance.has_vacancies
         self.is_alloy = site_instance.is_alloy
-        
+
 
 class GetterMixin(HubbardGetterMixin):
 
@@ -101,10 +101,10 @@ class GetterMixin(HubbardGetterMixin):
     @property
     def sites(self):
         return self.properties.sites
-    
+
     @property
     def kinds(self):
-        # This helps in plugin migration, 
+        # This helps in plugin migration,
         # a lot of them use kinds as defined in orm.StructureData
         return [RedundantKind(site) for site in self.properties.sites]
     # End redundant properties.
@@ -410,7 +410,7 @@ class GetterMixin(HubbardGetterMixin):
         """
         from aiida_atomistic.data.structure.utils import calc_cell_volume
         return calc_cell_volume(self.properties.cell)
-    
+
     def get_symbols_set(self):
         """Return a set containing the names of all elements involved in
         this structure (i.e., for it joins the list of symbols for each
@@ -1514,27 +1514,11 @@ class SetterMixin(HubbardSetterMixin):
                 sites.append(new_site.model_dump())
             structure["sites"] = sites
             self.__init__(**structure)
-        '''else:
-            """Update the site at the given index."""
-            for key, value in new_site.model_dump(exclude_defaults=True).items():
-                _value = getattr(self.properties, key, None)
-                print(len(self.properties.sites))
-                print(key, _value)
-                if not _value:
-                    print(len(self.properties.sites))
-                    if key in self.get_supported_properties():
-                        print(len(self.properties.sites))
-                        # first, we need to populate a list, so we can insert/append the new value
-                        print([_DEFAULT_VALUES[key]],(len(self.properties.sites)))
-                        setattr(self.properties, key, [_DEFAULT_VALUES[key]]*(len(self.properties.sites)))
-                        _value = getattr(self.properties, key, None)
-                    else:
-                        raise ValueError(f"Invalid key '{key}' for site properties.")
-                if index > -1:
-                    _value.insert(index, value)
-                else:
-                    _value.append(value)
-                print(key, _value)'''
+        return
+
+    def append_atom(self, **atom_info):
+        """Append a new atom to the structure."""
+        self.add_atom(**atom_info)
         return
 
     def pop_atom(self, index=-1):

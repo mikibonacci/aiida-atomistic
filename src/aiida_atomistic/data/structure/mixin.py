@@ -1021,10 +1021,14 @@ class GetterMixin(HubbardGetterMixin):
         """
         from phonopy.structure.atoms import PhonopyAtoms
 
-        atoms = PhonopyAtoms(symbols=[_.kinds for _ in self.properties.sites])
-        # Phonopy internally uses scaled positions, so you must store cell first!
-        atoms.set_cell(self.properties.cell)
-        atoms.set_positions([_.position for _ in self.properties.sites])
+        atoms = PhonopyAtoms(
+            symbols = self.properties.symbols,
+            masses = self.properties.masses,
+            magnetic_moments = self.properties.magmoms,
+            positions = self.properties.positions,
+            cell = self.cell,
+            pbc = self.pbc,
+        )
 
         return atoms
 
@@ -1037,7 +1041,10 @@ class GetterMixin(HubbardGetterMixin):
         """
         import ase
 
-        asecell = ase.Atoms(cell=self.properties.cell, pbc=self.properties.pbc)
+        asecell = ase.Atoms(
+            cell=self.properties.cell,
+            pbc=self.properties.pbc,
+            )
 
         for site in self.properties.sites:
             asecell.append(site.to_ase(kinds=site.kinds))

@@ -271,11 +271,13 @@ class SiteCore(BaseModel):
         # we should put a small routine to do tags. or instead of kinds, provide the tag (or tag mapping).
         tag = None
         atom_dict = self.model_dump()
-        atom_dict["symbols"] = atom_dict.pop("symbols", None)
-        atom_dict["positions"] = atom_dict.pop("positions", None)
+        atom_dict["symbol"] = atom_dict.pop("symbols", None)
+        atom_dict["position"] = atom_dict.pop("positions", None)
         atom_dict["magmom"] = atom_dict.pop("magmoms", None)
+        atom_dict["momentum"] = atom_dict.pop("momentum", None)
         atom_dict["charge"] = atom_dict.pop("charges", None)
         atom_dict["mass"] = atom_dict.pop("masses", None)
+        atom_dict["tag"] = atom_dict.pop("kinds", None)
         for prop in set(self.model_dump().keys()).difference(required_properties):
             atom_dict.pop(prop,None)
         aseatom = ase.Atom(
